@@ -1,12 +1,12 @@
-# AGENTS.md — Automated Plan Reviser Pro (APR)
+# AGENTS.md - Automated Plan Reviser Pro (APR)
 
-## RULE 1 – ABSOLUTE (DO NOT EVER VIOLATE THIS)
+## RULE 1 - ABSOLUTE (DO NOT EVER VIOLATE THIS)
 
-You may NOT delete any file or directory unless I explicitly give the exact command **in this session**.
+You may NOT delete any file or directory unless I explicitly give the exact command in this session.
 
 - This includes files you just created (tests, tmp files, scripts, etc.).
 - You do not get to decide that something is "safe" to remove.
-- If you think something should be removed, stop and ask. You must receive clear written approval **before** any deletion command is even proposed.
+- If you think something should be removed, stop and ask. You must receive clear written approval before any deletion command is even proposed.
 
 Treat "never delete files without permission" as a hard invariant.
 
@@ -14,7 +14,7 @@ Treat "never delete files without permission" as a hard invariant.
 
 ## IRREVERSIBLE GIT & FILESYSTEM ACTIONS
 
-Absolutely forbidden unless I give the **exact command and explicit approval** in the same message:
+Absolutely forbidden unless I give the exact command and explicit approval in the same message:
 
 - `git reset --hard`
 - `git clean -fd`
@@ -37,15 +37,15 @@ If that audit trail is missing, then you must act as if the operation never happ
 
 ## Project Overview
 
-**APR (Automated Plan Reviser Pro)** is a CLI tool that automates iterative specification refinement using GPT Pro Extended Reasoning via Oracle browser automation.
+APR (Automated Plan Reviser Pro) is a CLI tool that automates iterative specification refinement using GPT Pro Extended Reasoning via Oracle browser automation.
 
 ### Core Concept
 
 Like numerical optimization converging on a steady state, specification design improves through multiple iterations:
 
-1. **Early rounds** fix major issues (security gaps, architectural flaws)
-2. **Middle rounds** refine architecture and interfaces
-3. **Later rounds** polish abstractions and fine-tune details
+1. Early rounds fix major issues (security gaps, architectural flaws)
+2. Middle rounds refine architecture and interfaces
+3. Later rounds polish abstractions and fine-tune details
 
 APR automates the tedious parts:
 - Bundling documents (README, spec, implementation)
@@ -57,11 +57,11 @@ APR automates the tedious parts:
 
 ## Bash Script Discipline
 
-This is a **pure Bash project** (no embedded languages).
+This is a pure Bash project (no embedded languages).
 
 ### Bash Rules
 
-- Target **Bash 4.0+** compatibility. Use `#!/usr/bin/env bash` shebang.
+- Target Bash 4.0+ compatibility. Use `#!/usr/bin/env bash` shebang.
 - Use `set -euo pipefail` for strict error handling.
 - Use ShellCheck to lint all scripts. Address all warnings at severity `warning` or higher.
 - Prefer functions over inline code for reusability.
@@ -69,10 +69,10 @@ This is a **pure Bash project** (no embedded languages).
 
 ### Key Patterns
 
-- **Stream separation** — stderr for human-readable output (progress, errors), stdout for structured data.
-- **XDG compliance** — Data in `~/.local/share/apr/`, cache in `~/.cache/apr/`.
-- **No global `cd`** — Use absolute paths; change directory only when necessary.
-- **Graceful degradation** — gum → ANSI colors, Oracle global → npx.
+- Stream separation - stderr for human-readable output (progress, errors), stdout for structured data.
+- XDG compliance - Data in `~/.local/share/apr/`, cache in `~/.cache/apr/`.
+- No global `cd` - Use absolute paths; change directory only when necessary.
+- Graceful degradation - gum -> ANSI colors, Oracle global -> npx.
 
 ---
 
@@ -80,17 +80,17 @@ This is a **pure Bash project** (no embedded languages).
 
 ```
 automated_plan_reviser_pro/
-├── apr                  # Main script (~800 LOC)
-├── install.sh           # Curl-bash installer
-├── README.md            # Comprehensive documentation
-├── AGENTS.md            # This file
-├── VERSION              # Semver version file
-├── LICENSE              # MIT License
-├── workflows/           # Example workflow configs
-│   └── fcp-example.yaml
-├── templates/           # Prompt templates
-│   └── standard.md
-└── lib/                 # Shared functions (future)
++-- apr                  # Main script (~800 LOC)
++-- install.sh           # Curl-bash installer
++-- README.md            # Comprehensive documentation
++-- AGENTS.md            # This file
++-- VERSION              # Semver version file
++-- LICENSE              # MIT License
++-- workflows/           # Example workflow configs
+|   `-- fcp-example.yaml
++-- templates/           # Prompt templates
+|   `-- standard.md
+`-- lib/                 # Shared functions (future)
 ```
 
 ### Per-Project Configuration
@@ -99,14 +99,14 @@ When APR is used in a project, it creates:
 
 ```
 <project>/
-└── .apr/
-    ├── config.yaml           # Default workflow setting
-    ├── workflows/            # Workflow definitions
-    │   └── <name>.yaml
-    ├── rounds/               # GPT Pro outputs
-    │   └── <workflow>/
-    │       └── round_N.md
-    └── templates/            # Custom prompt templates
+`-- .apr/
+    +-- config.yaml           # Default workflow setting
+    +-- workflows/            # Workflow definitions
+    |   `-- <name>.yaml
+    +-- rounds/               # GPT Pro outputs
+    |   `-- <workflow>/
+    |       `-- round_N.md
+    `-- templates/            # Custom prompt templates
 ```
 
 ---
@@ -136,18 +136,18 @@ template: |
   ...
 ```
 
-**Key config options:**
+Key config options:
 
-- `impl_every_n: N` — Automatically include implementation document every Nth round (e.g., rounds 4, 8, 12...)
+- `impl_every_n: N` - Automatically include implementation document every Nth round (e.g., rounds 4, 8, 12...)
 - This keeps the spec grounded in implementation reality without manual `--include-impl` flags
 
-**Run APR from your project directory** where your README, spec, and implementation files live. The `.apr/` configuration is per-project.
+Run APR from your project directory where your README, spec, and implementation files live. The `.apr/` configuration is per-project.
 
 ---
 
 ## Code Editing Discipline
 
-- Do **not** run scripts that bulk-modify code (codemods, invented one-off scripts, giant `sed`/regex refactors).
+- Do not run scripts that bulk-modify code (codemods, invented one-off scripts, giant `sed`/regex refactors).
 - Large mechanical changes: break into smaller, explicit edits and review diffs.
 - Subtle/complex changes: edit by hand, file-by-file, with careful reasoning.
 
@@ -167,11 +167,11 @@ We optimize for a clean architecture now, not backwards compatibility.
 ## Console Output Design
 
 Output stream rules:
-- **stderr**: All human-readable output (progress, errors, banners, `[apr]` prefix)
-- **stdout**: Only structured output when applicable
+- stderr: All human-readable output (progress, errors, banners, `[apr]` prefix)
+- stdout: Only structured output when applicable
 
 Visual design:
-- Use **gum** when available for beautiful terminal UI (banners, spinners, styled text)
+- Use gum when available for beautiful terminal UI (banners, spinners, styled text)
 - Fall back to ANSI color codes when gum is unavailable
 - Suppress gum in CI environments or when `APR_NO_GUM=1`
 
@@ -201,15 +201,15 @@ Visual design:
 APR uses [Oracle](https://github.com/steipete/oracle) for GPT Pro browser automation.
 
 Key Oracle features used:
-- `--engine browser` — Browser automation for ChatGPT webapp
-- `-m "5.2 Thinking"` — Model selection with extended reasoning
-- `--browser-attachments never` — **Paste inline instead of file uploads** (more reliable)
-- `--slug` — Human-readable session identifier
-- `--write-output` — Save response to file
-- `--notify` — Desktop notification on completion (if supported)
-- `--heartbeat` — Progress updates
+- `--engine browser` - Browser automation for ChatGPT webapp
+- `-m "5.2 Thinking"` - Model selection with extended reasoning
+- `--browser-attachments never` - Paste inline instead of file uploads (more reliable)
+- `--slug` - Human-readable session identifier
+- `--write-output` - Save response to file
+- `--notify` - Desktop notification on completion (if supported)
+- `--heartbeat` - Progress updates
 
-**Critical: Inline Pasting vs File Uploads**
+Critical: Inline Pasting vs File Uploads
 
 APR always uses `--browser-attachments never` to paste document contents directly into the chat. This is far more reliable than file uploads because:
 - File uploads can fail silently or trigger "duplicate file" errors
@@ -217,9 +217,9 @@ APR always uses `--browser-attachments never` to paste document contents directl
 - Inline pasting works consistently for documents up to ~200KB
 
 Session management:
-- `oracle status` — List recent sessions
-- `oracle session <slug>` — Attach to session
-- `oracle session <slug> --render` — View with output
+- `oracle status` - List recent sessions
+- `oracle session <slug>` - Attach to session
+- `oracle session <slug> --render` - View with output
 
 For headless/SSH environments, see README.md section on Oracle Remote Setup.
 
@@ -227,13 +227,13 @@ For headless/SSH environments, see README.md section on Oracle Remote Setup.
 
 ## Issue Tracking with br (beads_rust)
 
-All issue tracking goes through **br**. No other TODO systems.
+All issue tracking goes through br. No other TODO systems.
 
-**Note:** `br` is non-invasive—it never executes git commands directly. You must run git commands manually after `br sync --flush-only`.
+Note: `br` is non-invasive - it never executes git commands directly. You must run git commands manually after `br sync --flush-only`.
 
 Key invariants:
 
-- `.beads/` is authoritative state and **must always be committed** with code changes.
+- `.beads/` is authoritative state and must always be committed with code changes.
 - Do not edit `.beads/*.jsonl` directly; only via `br`.
 
 ### Basics
@@ -249,14 +249,14 @@ br close br-42 --reason "Done"     # Complete issue
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+When ending a work session, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
 
-**MANDATORY WORKFLOW:**
+MANDATORY WORKFLOW:
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - ShellCheck for bash scripts
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. File issues for remaining work - Create issues for anything that needs follow-up
+2. Run quality gates (if code changed) - ShellCheck for bash scripts
+3. Update issue status - Close finished work, update in-progress items
+4. PUSH TO REMOTE - This is MANDATORY:
    ```bash
    git pull --rebase
    br sync --flush-only
@@ -265,11 +265,11 @@ br close br-42 --reason "Done"     # Complete issue
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. Clean up - Clear stashes, prune remote branches
+6. Verify - All changes committed AND pushed
+7. Hand off - Provide context for next session
 
-**CRITICAL RULES:**
+CRITICAL RULES:
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
@@ -349,37 +349,37 @@ When modifying APR:
 
 ---
 
-## MCP Agent Mail — Multi-Agent Coordination
+## MCP Agent Mail - Multi-Agent Coordination
 
 A mail-like layer that lets coding agents coordinate asynchronously via MCP tools and resources. Provides identities, inbox/outbox, searchable threads, and advisory file reservations with human-auditable artifacts in Git.
 
 ### Why It's Useful
 
-- **Prevents conflicts:** Explicit file reservations (leases) for files/globs
-- **Token-efficient:** Messages stored in per-project archive, not in context
-- **Quick reads:** `resource://inbox/...`, `resource://thread/...`
+- Prevents conflicts: Explicit file reservations (leases) for files/globs
+- Token-efficient: Messages stored in per-project archive, not in context
+- Quick reads: `resource://inbox/...`, `resource://thread/...`
 
 ### Same Repository Workflow
 
-1. **Register identity:**
+1. Register identity:
    ```
    ensure_project(project_key=<abs-path>)
    register_agent(project_key, program, model)
    ```
 
-2. **Reserve files before editing:**
+2. Reserve files before editing:
    ```
    file_reservation_paths(project_key, agent_name, ["apr", "scripts/**"], ttl_seconds=3600, exclusive=true)
    ```
 
-3. **Communicate with threads:**
+3. Communicate with threads:
    ```
    send_message(..., thread_id="FEAT-123")
    fetch_inbox(project_key, agent_name)
    acknowledge_message(project_key, agent_name, message_id)
    ```
 
-4. **Quick reads:**
+4. Quick reads:
    ```
    resource://inbox/{Agent}?project=<abs-path>&limit=20
    resource://thread/{id}?project=<abs-path>&include_bodies=true
@@ -387,26 +387,26 @@ A mail-like layer that lets coding agents coordinate asynchronously via MCP tool
 
 ### Macros vs Granular Tools
 
-- **Prefer macros for speed:** `macro_start_session`, `macro_prepare_thread`, `macro_file_reservation_cycle`, `macro_contact_handshake`
-- **Use granular tools for control:** `register_agent`, `file_reservation_paths`, `send_message`, `fetch_inbox`, `acknowledge_message`
+- Prefer macros for speed: `macro_start_session`, `macro_prepare_thread`, `macro_file_reservation_cycle`, `macro_contact_handshake`
+- Use granular tools for control: `register_agent`, `file_reservation_paths`, `send_message`, `fetch_inbox`, `acknowledge_message`
 
 ### Common Pitfalls
 
 - `"from_agent not registered"`: Always `register_agent` in the correct `project_key` first
 - `"FILE_RESERVATION_CONFLICT"`: Adjust patterns, wait for expiry, or use non-exclusive reservation
-- **Auth errors:** If JWT+JWKS enabled, include bearer token with matching `kid`
+- Auth errors: If JWT+JWKS enabled, include bearer token with matching `kid`
 
 ---
 
-## bv — Graph-Aware Triage Engine
+## bv - Graph-Aware Triage Engine
 
 bv is a graph-aware triage engine for Beads projects (`.beads/beads.jsonl`). It computes PageRank, betweenness, critical path, cycles, HITS, eigenvector, and k-core metrics deterministically.
 
-**CRITICAL: Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.**
+CRITICAL: Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.
 
 ### The Workflow: Start With Triage
 
-**`bv --robot-triage` is your single entry point.** It returns:
+`bv --robot-triage` is your single entry point. It returns:
 - `quick_ref`: at-a-glance counts + top 3 picks
 - `recommendations`: ranked actionable items with scores, reasons, unblock info
 - `quick_wins`: low-effort high-impact items
@@ -421,13 +421,13 @@ bv --robot-next          # Minimal: just the single top pick + claim command
 
 ### Command Reference
 
-**Planning:**
+Planning:
 | Command | Returns |
 |---------|---------|
 | `--robot-plan` | Parallel execution tracks with `unblocks` lists |
 | `--robot-priority` | Priority misalignment detection with confidence |
 
-**Graph Analysis:**
+Graph Analysis:
 | Command | Returns |
 |---------|---------|
 | `--robot-insights` | Full metrics: PageRank, betweenness, HITS, eigenvector, critical path, cycles, k-core |
@@ -444,15 +444,15 @@ bv --robot-insights | jq '.Cycles'                         # Circular deps (must
 
 ---
 
-## UBS — Ultimate Bug Scanner
+## UBS - Ultimate Bug Scanner
 
-**Golden Rule:** `ubs <changed-files>` before every commit. Exit 0 = safe. Exit >0 = fix & re-run.
+Golden Rule: `ubs <changed-files>` before every commit. Exit 0 = safe. Exit >0 = fix & re-run.
 
 ### Commands
 
 ```bash
-ubs apr install.sh                      # Specific files (< 1s) — USE THIS
-ubs $(git diff --name-only --cached)    # Staged files — before commit
+ubs apr install.sh                      # Specific files (< 1s) - USE THIS
+ubs $(git diff --name-only --cached)    # Staged files - before commit
 ubs --only=bash,shell scripts/          # Language filter (3-5x faster)
 ubs .                                   # Whole project
 ```
@@ -460,47 +460,47 @@ ubs .                                   # Whole project
 ### Output Format
 
 ```
-⚠️  Category (N errors)
-    apr:42:5 – Issue description
-    💡 Suggested fix
+WARNING:  Category (N errors)
+    apr:42:5 - Issue description
+    TIP: Suggested fix
 Exit code: 1
 ```
 
-Parse: `file:line:col` → location | 💡 → how to fix | Exit 0/1 → pass/fail
+Parse: `file:line:col` -> location | TIP: -> how to fix | Exit 0/1 -> pass/fail
 
 ### Fix Workflow
 
-1. Read finding → category + fix suggestion
-2. Navigate `file:line:col` → view context
+1. Read finding -> category + fix suggestion
+2. Navigate `file:line:col` -> view context
 3. Verify real issue (not false positive)
 4. Fix root cause (not symptom)
-5. Re-run `ubs <file>` → exit 0
+5. Re-run `ubs <file>` -> exit 0
 6. Commit
 
 ### Bug Severity
 
-- **Critical (always fix):** Command injection, unquoted variables, eval with user input
-- **Important (production):** Missing error handling, unset variables, unsafe pipes
-- **Contextual (judgment):** TODO/FIXME, echo debugging
+- Critical (always fix): Command injection, unquoted variables, eval with user input
+- Important (production): Missing error handling, unset variables, unsafe pipes
+- Contextual (judgment): TODO/FIXME, echo debugging
 
 ---
 
 ## ast-grep vs ripgrep
 
-**Use `ast-grep` when structure matters.** It parses code and matches AST nodes, ignoring comments/strings, and can **safely rewrite** code.
+Use `ast-grep` when structure matters. It parses code and matches AST nodes, ignoring comments/strings, and can safely rewrite code.
 
 - Refactors/codemods: rename APIs, change patterns
 - Policy checks: enforce patterns across a repo
 
-**Use `ripgrep` when text is enough.** Fastest way to grep literals/regex.
+Use `ripgrep` when text is enough. Fastest way to grep literals/regex.
 
 - Recon: find strings, TODOs, log lines, config values
 - Pre-filter: narrow candidate files before ast-grep
 
 ### Rule of Thumb
 
-- Need correctness or **applying changes** → `ast-grep`
-- Need raw speed or **hunting text** → `rg`
+- Need correctness or applying changes -> `ast-grep`
+- Need raw speed or hunting text -> `rg`
 - Often combine: `rg` to shortlist files, then `ast-grep` to match/modify
 
 ### Bash Examples
@@ -521,11 +521,11 @@ rg -l -t sh 'eval' | xargs ast-grep run -l Bash -p 'eval $$$'
 
 ---
 
-## Morph Warp Grep — AI-Powered Code Search
+## Morph Warp Grep - AI-Powered Code Search
 
-**Use `mcp__morph-mcp__warp_grep` for exploratory "how does X work?" questions.** An AI agent expands your query, greps the codebase, reads relevant files, and returns precise line ranges with full context.
+Use `mcp__morph-mcp__warp_grep` for exploratory "how does X work?" questions. An AI agent expands your query, greps the codebase, reads relevant files, and returns precise line ranges with full context.
 
-**Use `ripgrep` for targeted searches.** When you know exactly what you're looking for.
+Use `ripgrep` for targeted searches. When you know exactly what you're looking for.
 
 ### When to Use What
 
@@ -547,16 +547,16 @@ mcp__morph-mcp__warp_grep(
 
 ### Anti-Patterns
 
-- **Don't** use `warp_grep` to find a specific function name → use `ripgrep`
-- **Don't** use `ripgrep` to understand "how does X work" → wastes time with manual reads
+- Don't use `warp_grep` to find a specific function name -> use `ripgrep`
+- Don't use `ripgrep` to understand "how does X work" -> wastes time with manual reads
 
 ---
 
-## cass — Cross-Agent Session Search
+## cass - Cross-Agent Session Search
 
 `cass` indexes prior agent conversations (Claude Code, Codex, Cursor, Gemini, ChatGPT, etc.) so we can reuse solved problems.
 
-**Rules:** Never run bare `cass` (TUI). Always use `--robot` or `--json`.
+Rules: Never run bare `cass` (TUI). Always use `--robot` or `--json`.
 
 ### Examples
 
@@ -587,7 +587,7 @@ Treat cass as a way to avoid re-solving problems other agents already handled.
 
 This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
 
-**Note:** `br` is non-invasive—it never executes git commands directly. You must run git commands manually after `br sync --flush-only`.
+Note: `br` is non-invasive - it never executes git commands directly. You must run git commands manually after `br sync --flush-only`.
 
 ### Essential Commands
 
@@ -605,17 +605,17 @@ br sync --flush-only  # Export to JSONL (then manually: git add .beads/ && git c
 
 ### Workflow Pattern
 
-1. **Start**: Run `br ready` to find actionable work
-2. **Claim**: Use `br update <id> --status=in_progress`
-3. **Work**: Implement the task
-4. **Complete**: Use `br close <id>`
-5. **Sync**: Run `br sync --flush-only`, then `git add .beads/ && git commit -m "Update beads"`
+1. Start: Run `br ready` to find actionable work
+2. Claim: Use `br update <id> --status=in_progress`
+3. Work: Implement the task
+4. Complete: Use `br close <id>`
+5. Sync: Run `br sync --flush-only`, then `git add .beads/ && git commit -m "Update beads"`
 
 ### Key Concepts
 
-- **Dependencies**: Issues can block other issues. `br ready` shows only unblocked work.
-- **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
-- **Types**: task, bug, feature, epic, question, docs
+- Dependencies: Issues can block other issues. `br ready` shows only unblocked work.
+- Priority: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
+- Types: task, bug, feature, epic, question, docs
 
 <!-- end-bv-agent-instructions -->
 
@@ -635,4 +635,4 @@ Next steps (pick one)
 1. Decide how to handle the unrelated modified files above so we can resume cleanly.
 ```
 
-NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into thinking YOU made the changes and simply don't recall it for some reason.
+NEVER EVER DO THAT AGAIN. The answer is literally ALWAYS the same: those are changes created by the potentially dozen of other agents working on the project at the same time. This is not only a common occurrence, it happens multiple times PER MINUTE. The way to deal with it is simple: you NEVER, under ANY CIRCUMSTANCE, stash, revert, overwrite, or otherwise disturb in ANY way the work of other agents. Just treat those changes identically to changes that you yourself made. Just fool yourself into thinking YOU made the changes and simply don't recall it for some reason.
