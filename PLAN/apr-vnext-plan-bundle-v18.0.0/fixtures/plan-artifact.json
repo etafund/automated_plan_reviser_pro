@@ -122,6 +122,73 @@
       }
     ]
   },
+  "provider_comparison": {
+    "agreements": [
+      {
+        "agreement_id": "AGREE-ROUTE-GATING",
+        "plan_item_ids": [
+          "PLAN-ROUTE-GATING"
+        ],
+        "provider_result_ids": [
+          "provider-result-demo-chatgpt_pro_first_plan",
+          "provider-result-demo-gemini_deep_think"
+        ],
+        "summary": "Both providers require route readiness evidence before synthesis."
+      }
+    ],
+    "compared_provider_result_ids": [
+      "provider-result-demo-chatgpt_pro_first_plan",
+      "provider-result-demo-gemini_deep_think"
+    ],
+    "comparison_id": "COMPARE-ROUTE-GATING",
+    "contradiction_ids": [
+      "CONTRADICT-SYNTHESIS-GATE"
+    ],
+    "input_artifact_id": "full-plan-ir-demo",
+    "item_counts": {
+      "agreements": 1,
+      "contradictions": 1,
+      "improvement_opportunities": 1,
+      "missing_coverage": 1,
+      "stale_assumptions": 1,
+      "unsupported_claims": 1
+    },
+    "missing_coverage": [
+      {
+        "coverage_id": "COVERAGE-MISSING-FINAL-HANDOFF-EVIDENCE",
+        "missing_from_provider_result_id": "provider-result-demo-chatgpt_pro_first_plan",
+        "summary": "First plan covered prompt-submission evidence but not final handoff evidence."
+      }
+    ],
+    "output_artifact_id": "provider-comparison-demo",
+    "reviewer_deltas": [
+      {
+        "delta_id": "DELTA-GEMINI-FINAL-HANDOFF-GATE",
+        "improvement_category": "contracts",
+        "provider_result_id": "provider-result-demo-gemini_deep_think",
+        "summary": "Reviewer added a final handoff evidence gate that the first plan did not include.",
+        "target_plan_item_ids": [
+          "PLAN-ROUTE-GATING"
+        ]
+      }
+    ],
+    "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+    "stale_assumptions": [
+      {
+        "assumption_id": "STALE-ASSUME-SELECTOR-STABILITY",
+        "provider_result_id": "provider-result-demo-chatgpt_pro_first_plan",
+        "staleness_reason": "Browser selector stability must be checked against fresh evidence before live use."
+      }
+    ],
+    "unsupported_claims": [
+      {
+        "claim_id": "UNSUPPORTED-AUTO-SYNTHESIS-READY",
+        "human_review_required": true,
+        "provider_result_id": "provider-result-demo-gemini_deep_think",
+        "reason": "Claim lacks source or evidence reference proving synthesis may proceed automatically."
+      }
+    ]
+  },
   "plan_id": "plan-demo",
   "plan_items": [
     {
@@ -140,6 +207,10 @@
       "kind": "implementation_phase",
       "normalization_stage": "bead_export_ready",
       "priority_suggestion": 1,
+      "provider_comparison_refs": [
+        "COMPARE-ROUTE-GATING",
+        "DELTA-GEMINI-FINAL-HANDOFF-GATE"
+      ],
       "provider_result_refs": [
         "provider-result-demo-chatgpt_pro_first_plan",
         "provider-result-demo-gemini_deep_think"
@@ -241,6 +312,19 @@
         "provider-result-demo-gemini_deep_think"
       ],
       "test_id": "TEST-ROUTE-READINESS-CONTRACT",
+      "type": "contract"
+    },
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "expected": "provider comparison records include provider ids, contradiction ids, and traceability anchors",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "test_id": "TEST-PROVIDER-COMPARISON-CONTRACT",
       "type": "contract"
     }
   ]

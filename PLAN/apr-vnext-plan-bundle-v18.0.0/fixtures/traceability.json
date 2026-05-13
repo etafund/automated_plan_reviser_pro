@@ -73,6 +73,33 @@
       "stage": "bead_export_ready"
     }
   ],
+  "provider_comparison_checks": [
+    {
+      "check_id": "COMPARE-CHECK-CONTRADICTION-LINKED",
+      "comparison_id": "COMPARE-ROUTE-GATING",
+      "contradiction_ids": [
+        "CONTRADICT-SYNTHESIS-GATE"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "result": "pass",
+      "traceability_refs": [
+        "REQ-PROVIDER-COMPARISON-STRUCTURED",
+        "PLAN-ROUTE-GATING"
+      ]
+    },
+    {
+      "check_id": "COMPARE-CHECK-UNSUPPORTED-CLAIM-REVIEW",
+      "comparison_id": "COMPARE-ROUTE-GATING",
+      "human_review_required": true,
+      "result": "pass",
+      "unsupported_claim_ids": [
+        "UNSUPPORTED-AUTO-SYNTHESIS-READY"
+      ]
+    }
+  ],
   "requirements": [
     {
       "id": "REQ-CHATGPT-PRO-FIRST-PLAN",
@@ -97,6 +124,32 @@
       "statement": "ChatGPT Pro first-plan output must remain an Oracle-browser route with evidence.",
       "tests": [
         "test_chatgpt_pro_first_plan_required"
+      ]
+    },
+    {
+      "id": "REQ-PROVIDER-COMPARISON-STRUCTURED",
+      "acceptance_criteria_ids": [
+        "AC-PROVIDER-ROUTES-TYPED"
+      ],
+      "comparison_ids": [
+        "COMPARE-ROUTE-GATING"
+      ],
+      "contradiction_ids": [
+        "CONTRADICT-SYNTHESIS-GATE"
+      ],
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
+      "statement": "Synthesis consumes structured comparison deltas and contradictions instead of unannotated provider summaries.",
+      "tests": [
+        "test_provider_comparison_structured"
       ]
     }
   ],
@@ -124,6 +177,21 @@
       ],
       "provider_result_ids": [
         "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "type": "contract"
+    },
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "comparison_ids": [
+        "COMPARE-ROUTE-GATING"
+      ],
+      "id": "test_provider_comparison_structured",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
       ],
       "type": "contract"
     }
