@@ -1,0 +1,12 @@
+ok	0	Success
+usage_error	2	Bad arguments or invalid option values
+not_configured	4	APR project is not initialized
+config_error	4	Workflow, config, or filesystem configuration problem
+validation_failed	4	Precondition failed before running
+dependency_missing	3	Required local dependency is unavailable
+busy	12	Single-flight lock or busy state blocks this operation
+network_error	10	Remote or network operation failed
+update_error	11	Self-update failed
+attachment_mismatch	4	Attachment or file manifest mismatch
+not_implemented	1	Requested feature is not supported in this install
+internal_error	1	Unexpected APR bug or unknown state
