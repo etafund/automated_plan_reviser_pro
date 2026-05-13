@@ -12,6 +12,14 @@ def envelope(ok=True, data=None, warnings=None, errors=None, next_command=None, 
 
 def load(path: Path): return json.loads(path.read_text(encoding='utf-8'))
 def parse_time(value: str): return datetime.fromisoformat(value.replace('Z','+00:00'))
+def tracked_pycache_entries(root: Path):
+    try:
+        completed=subprocess.run(['git','-C',str(root),'ls-files','--','*/__pycache__/*'], capture_output=True, text=True, check=False)
+    except OSError:
+        return [str(p.relative_to(root)) for p in root.rglob('__pycache__')]
+    if completed.returncode != 0:
+        return [str(p.relative_to(root)) for p in root.rglob('__pycache__')]
+    return [line for line in completed.stdout.splitlines() if line]
 def walk_hashes(obj, errors, where='fixture'):
     if isinstance(obj, dict):
         for k,v in obj.items():
@@ -37,7 +45,8 @@ def main():
                 obj=load(p); loaded[rel]=obj; walk_hashes(obj, errors, rel)
                 if obj.get('bundle_version') and obj.get('bundle_version') != VERSION: errors.append(f'{rel} bundle_version must be {VERSION}')
             except Exception as exc: errors.append(f'failed to parse {rel}: {exc}')
-    if list(root.rglob('__pycache__')): errors.append('bundle must not include __pycache__ directories')
+    pycache_entries=tracked_pycache_entries(root)
+    if pycache_entries: errors.append('bundle must not include tracked __pycache__ content: '+', '.join(pycache_entries[:5]))
     # no old active bundle version markers, except docs may mention v15 in comparison prose? Hard fail exact bundle markers only.
     for p in root.rglob('*'):
         if p.is_file() and p.suffix in {'.md','.json','.py','.sh','.txt'}:

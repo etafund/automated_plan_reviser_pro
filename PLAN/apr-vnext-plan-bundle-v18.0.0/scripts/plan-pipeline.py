@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -112,6 +113,12 @@ def run_subprocess_json(command, cwd: Path):
 
 
 def provider_result_from_slot(slot: str, prompt_path: Path, run_dir: Path):
+    if os.environ.get("APR_V18_FORCE_FIXTURES") == "1":
+        fixture_path = SLOT_FIXTURE_MAP.get(slot)
+        if fixture_path is None or not fixture_path.exists():
+            raise RuntimeError(f"No provider result fixture available for slot {slot}")
+        return read_json(fixture_path), f"fixture:{fixture_path.name}"
+
     # Use live adapter paths where available; otherwise load concrete fixture artifacts.
     if slot == "xai_grok_reasoning":
         try:

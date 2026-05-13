@@ -153,7 +153,7 @@ def run_command(command: list[str], cwd: Path, out_dir: Path) -> dict[str, Any]:
         capture_output=True,
         check=False,
         timeout=120,
-        env={**os.environ, "NO_COLOR": "1", "APR_NO_GUM": "1", "CI": "true"},
+        env={**os.environ, "NO_COLOR": "1", "APR_NO_GUM": "1", "CI": "true", "APR_V18_FORCE_FIXTURES": "1"},
     )
     stdout_path.write_text(completed.stdout, encoding="utf-8")
     stderr_path.write_text(completed.stderr, encoding="utf-8")

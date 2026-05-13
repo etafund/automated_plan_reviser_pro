@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_v18_live_cutover:
+        description: "Run the opt-in v18 live cutover dress rehearsal"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   checksums:
@@ -449,6 +458,220 @@ jobs:
           name: bats-logs-${{ matrix.os }}
           path: |
             tests/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  v18-deterministic-suites:
+    name: v18 Contract/Mock/Negative Suites
+    runs-on: ubuntu-latest
+    needs: [shellcheck, syntax]
+    timeout-minutes: 30
+    env:
+      APR_LIB_DIR: ${{ github.workspace }}/lib
+      APR_NO_GUM: "1"
+      NO_COLOR: "1"
+      CI: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install deterministic harness dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y jq python3-jsonschema
+          python3 -c 'import jsonschema; print("jsonschema", jsonschema.__version__)'
+
+      - name: Prepare APR test environment
+        run: |
+          set -euo pipefail
+          chmod +x apr tests/lib/bats-core/bin/bats
+          mkdir -p tests/logs/v18/ci tests/logs/v18/contracts .apr/runs/planning v18-ci-results
+
+      - name: Run deterministic v18 suites
+        run: |
+          set -euo pipefail
+
+          results_file="v18-ci-results/results.tsv"
+          summary_file="v18-ci-results/summary.md"
+          failures_file="v18-ci-results/failed-scenarios.txt"
+          artifact_note="v18-contract-mock-negative-artifacts"
+          : > "$results_file"
+          : > "$failures_file"
+          failed=()
+
+          run_suite() {
+            local suite_id="$1"
+            local rerun_command="$2"
+            shift 2
+
+            local log_path="tests/logs/v18/ci/${suite_id}.log"
+            local started_at finished_at duration status_code outcome
+            started_at="$(date +%s)"
+
+            echo "::group::${suite_id}"
+            {
+              printf 'suite_id=%s\n' "$suite_id"
+              printf 'rerun_command=%s\n\n' "$rerun_command"
+            } | tee "$log_path"
+
+            if "$@" > >(tee -a "$log_path") 2> >(tee -a "$log_path" >&2); then
+              status_code=0
+              outcome="pass"
+            else
+              status_code=$?
+              outcome="fail"
+              failed+=("$suite_id")
+              printf '%s\n' "$suite_id" >> "$failures_file"
+            fi
+
+            finished_at="$(date +%s)"
+            duration=$((finished_at - started_at))
+            printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+              "$suite_id" "$outcome" "$status_code" "$duration" "$log_path" "$rerun_command" \
+              >> "$results_file"
+            echo "::endgroup::"
+          }
+
+          bundle_script_root="PLAN/apr-vnext-plan-bundle-v18.0.0/scripts"
+          v18_integration_suites=(
+            tests/integration/test_v18_check_conformance.bats
+            tests/integration/test_v18_contract_roundtrip.bats
+            tests/integration/test_v18_cross_invariant.bats
+            tests/integration/test_v18_mock_e2e_profiles.bats
+            tests/integration/test_v18_negative_security_regressions.bats
+            tests/integration/test_v18_prompt_compiler_conformance.bats
+            tests/integration/test_v18_provider_adapter_pipeline_conformance.bats
+            tests/integration/test_v18_schema_corpus_conformance.bats
+            tests/integration/test_v18_schema_metamorphic_conformance.bats
+          )
+          v18_unit_suites=(
+            tests/unit/test_v18_claude_codex_adapters.bats
+            tests/unit/test_v18_history_show_ux.bats
+            tests/unit/test_v18_model_policy.bats
+            tests/unit/test_v18_plan_export.bats
+            tests/unit/test_v18_prompt_cli.bats
+            tests/unit/test_v18_run_ops.bats
+            tests/unit/test_v18_schema_conformance.bats
+            tests/unit/test_v18_ui_refresh.bats
+            tests/unit/test_v18_workflow_explain.bats
+          )
+
+          run_suite "contract-roundtrip" \
+            "python3 tests/v18_contract_roundtrip.py" \
+            python3 tests/v18_contract_roundtrip.py
+          run_suite "fixture-route-smoke" \
+            "python3 ${bundle_script_root}/contract-fixture-smoke.py --json" \
+            python3 "${bundle_script_root}/contract-fixture-smoke.py" --json
+          run_suite "schema-corpus" \
+            "python3 ${bundle_script_root}/schema-corpus-conformance.py --json" \
+            python3 "${bundle_script_root}/schema-corpus-conformance.py" --json
+          run_suite "schema-roundtrip" \
+            "python3 ${bundle_script_root}/schema-roundtrip-conformance.py --json" \
+            python3 "${bundle_script_root}/schema-roundtrip-conformance.py" --json
+          run_suite "schema-cross-invariant" \
+            "python3 ${bundle_script_root}/schema-cross-invariant-conformance.py --json" \
+            python3 "${bundle_script_root}/schema-cross-invariant-conformance.py" --json
+          run_suite "schema-metamorphic" \
+            "python3 ${bundle_script_root}/schema-metamorphic-conformance.py --json" \
+            python3 "${bundle_script_root}/schema-metamorphic-conformance.py" --json
+          run_suite "provider-pipeline" \
+            "python3 ${bundle_script_root}/provider-adapter-pipeline-conformance.py --json" \
+            python3 "${bundle_script_root}/provider-adapter-pipeline-conformance.py" --json
+          run_suite "mock-e2e-profiles" \
+            "python3 ${bundle_script_root}/mock-e2e-profiles.py --json --profile all" \
+            python3 "${bundle_script_root}/mock-e2e-profiles.py" --json --profile all
+          run_suite "negative-security" \
+            "python3 ${bundle_script_root}/negative-security-regression.py --json" \
+            python3 "${bundle_script_root}/negative-security-regression.py" --json
+          run_suite "v18-unit-bats" \
+            "tests/lib/bats-core/bin/bats --tap ${v18_unit_suites[*]}" \
+            tests/lib/bats-core/bin/bats --tap "${v18_unit_suites[@]}"
+          run_suite "v18-integration-bats" \
+            "tests/lib/bats-core/bin/bats --tap ${v18_integration_suites[*]}" \
+            tests/lib/bats-core/bin/bats --tap "${v18_integration_suites[@]}"
+
+          {
+            echo "# v18 deterministic CI suites"
+            echo
+            echo "| Suite | Status | Seconds | Log | Rerun |"
+            echo "| --- | --- | ---: | --- | --- |"
+            while IFS=$'\t' read -r suite_id outcome status_code duration log_path rerun_command; do
+              echo "| \`${suite_id}\` | \`${outcome}\` (${status_code}) | ${duration} | \`${log_path}\` | \`${rerun_command}\` |"
+            done < "$results_file"
+            echo
+            echo "Artifact bundle path: \`${artifact_note}\`"
+            echo "Uploaded paths: \`tests/logs/v18/**\`, \`.apr/runs/planning/**\`, \`v18-ci-results/**\`."
+            if ((${#failed[@]} > 0)); then
+              echo
+              echo "Failed scenario ids:"
+              sed 's/^/- `/' "$failures_file" | sed 's/$/`/'
+            else
+              echo
+              echo "Failed scenario ids: none"
+            fi
+            echo
+            echo "Live cutover is not automatic. Trigger \`workflow_dispatch\` with \`run_v18_live_cutover=true\` for the opt-in dress rehearsal."
+          } > "$summary_file"
+
+          cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
+
+          if ((${#failed[@]} > 0)); then
+            exit 1
+          fi
+
+      - name: Upload v18 contract/mock/negative logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v18-contract-mock-negative-artifacts
+          path: |
+            tests/logs/v18/**
+            .apr/runs/planning/**
+            v18-ci-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  v18-live-cutover-opt-in:
+    name: v18 Live Cutover Dress Rehearsal
+    runs-on: ubuntu-latest
+    needs: [shellcheck, syntax]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_v18_live_cutover == 'true'
+    timeout-minutes: 20
+    env:
+      APR_LIB_DIR: ${{ github.workspace }}/lib
+      APR_NO_GUM: "1"
+      NO_COLOR: "1"
+      CI: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install opt-in harness dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Run opt-in live cutover dress rehearsal
+        run: |
+          set -euo pipefail
+          chmod +x apr tests/lib/bats-core/bin/bats
+          tests/lib/bats-core/bin/bats --tap tests/integration/test_v18_live_cutover_dress_rehearsal.bats
+
+      - name: Upload live cutover dress rehearsal logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v18-live-cutover-dress-rehearsal-logs
+          path: |
+            tests/logs/v18/**
           if-no-files-found: ignore
           retention-days: 14
 

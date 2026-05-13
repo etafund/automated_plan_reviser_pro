@@ -139,6 +139,7 @@ def check_codex_formal_plan(obj: dict[str, Any]) -> dict[str, Any]:
 
 def check_browser_evidence(obj: dict[str, Any]) -> dict[str, Any]:
     failures = []
+    field_hits = find_field_paths(obj, SECRET_OR_PRIVATE_FIELDS)
     if not exact_true(obj.get("mode_verified")):
         failures.append("mode_verified")
     if not exact_true(obj.get("verified_before_prompt_submit")):
@@ -147,10 +148,13 @@ def check_browser_evidence(obj: dict[str, Any]) -> dict[str, Any]:
         failures.append("capture_confidence")
     if not exact_true(obj.get("reasoning_effort_verified")):
         failures.append("reasoning_effort_verified")
+    if field_hits:
+        failures.append("forbidden_browser_material")
     if failures:
         return verdict(
             "browser_evidence_unverified",
             "Browser evidence is not eligible: " + ", ".join(failures),
+            field_hits,
         )
     return verdict(None, "browser evidence is verified")
 
