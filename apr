@@ -5473,6 +5473,11 @@ run_round() {
             else
                 print_warning "jq not available; skipping metrics collection"
             fi
+
+            if [[ -n "$OUTPUT_VALIDATION_REASON" ]]; then
+                # Exit with partial failure if output was invalid and couldn't be recovered
+                exit $EXIT_PARTIAL_FAILURE
+            fi
         else
             print_error "Oracle failed after ${elapsed_fmt} (exit code: $oracle_exit)"
             exit $oracle_exit
