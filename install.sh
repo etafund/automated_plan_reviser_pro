@@ -151,6 +151,47 @@ verify_checksum() {
     fi
 }
 
+# For pinned installs, release assets can drift if the binary is re-uploaded
+# while apr.sha256 still points at the original tag content. In that case,
+# fall back to downloading the immutable tag source and verify against the same
+# expected checksum before continuing.
+try_tag_source_fallback() {
+    local version="$1"
+    local expected_checksum="$2"
+    local current_tmp="$3"
+    local tag_url=""
+    local tag_tmp=""
+
+    if [[ -z "$version" || -z "$expected_checksum" || -z "$current_tmp" ]]; then
+        return 1
+    fi
+
+    tag_url="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/v${version}/${SCRIPT_NAME}"
+    tag_tmp=$(mktemp)
+
+    log_warn "Release artifact checksum mismatch for v${version}; trying immutable tag source"
+    log_dim "  fallback: ${tag_url}"
+
+    if ! download_file "$tag_url" "$tag_tmp"; then
+        rm -f "$tag_tmp"
+        return 1
+    fi
+
+    if ! verify_script "$tag_tmp"; then
+        rm -f "$tag_tmp"
+        return 1
+    fi
+
+    if ! verify_checksum "$tag_tmp" "$expected_checksum"; then
+        rm -f "$tag_tmp"
+        return 1
+    fi
+
+    mv "$tag_tmp" "$current_tmp"
+    log_info "Recovered via immutable tag source"
+    return 0
+}
+
 # Verify downloaded file is a valid bash script
 verify_script() {
     local file="$1"
@@ -540,8 +581,12 @@ main() {
         if [[ -n "$expected_checksum" ]]; then
             log_step "Verifying checksum..."
             if ! verify_checksum "$tmp_file" "$expected_checksum"; then
-                rm -f "$tmp_file"
-                exit $EXIT_CHECKSUM_ERROR
+                if [[ -n "${APR_VERSION:-}" ]] && try_tag_source_fallback "$APR_VERSION" "$expected_checksum" "$tmp_file"; then
+                    :
+                else
+                    rm -f "$tmp_file"
+                    exit $EXIT_CHECKSUM_ERROR
+                fi
             fi
             log_info "Checksum verified"
         else
