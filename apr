@@ -324,7 +324,7 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/validate.sh; do
+    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/validate.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -1872,13 +1872,23 @@ build_revision_prompt() {
     local config_file="${2:-}"
     local template=""
 
+    local manifest=""
+    manifest=$(build_prompt_manifest "$include_impl" "$config_file")
+
     template=$(load_prompt_template "$include_impl" "$config_file")
     if [[ -n "$template" ]]; then
-        printf '%s\n' "$template"
+        if [[ -n "$manifest" ]]; then
+            printf '%s%s\n' "$manifest" "$template"
+        else
+            printf '%s\n' "$template"
+        fi
         return 0
     fi
 
     local prompt=""
+    if [[ -n "$manifest" ]]; then
+        prompt+="$manifest"
+    fi
     prompt+="First, read this README:
 
 \`\`\`
