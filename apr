@@ -5169,6 +5169,11 @@ format_float() {
     fi
 }
 
+format_percent() {
+    local value="${1:-0}"
+    awk -v value="$value" 'BEGIN { printf "%.0f%%", value * 100 }'
+}
+
 safe_json_num() {
     local json="$1"
     local path="$2"
@@ -5282,6 +5287,138 @@ format_changes() {
     echo "+${added}-${deleted}"
 }
 
+stats_number_at_least() {
+    local value="${1:-0}"
+    local threshold="${2:-0}"
+    awk -v value="$value" -v threshold="$threshold" 'BEGIN { exit !(value >= threshold) }'
+}
+
+stats_signal_word() {
+    local value="${1:-0}"
+    awk -v value="$value" 'BEGIN {
+        if (value >= 0.70) print "strong";
+        else if (value >= 0.40) print "mixed";
+        else print "weak";
+    }'
+}
+
+stats_trend_word() {
+    local values=("$@")
+    local count=${#values[@]}
+    if [[ $count -lt 2 ]]; then
+        echo "flat"
+        return 0
+    fi
+
+    local half=$((count / 2))
+    [[ $half -lt 1 ]] && half=1
+
+    local first_sum=0 second_sum=0 i
+    for ((i=0; i<half; i++)); do
+        first_sum=$((first_sum + values[i]))
+    done
+    for ((i=half; i<count; i++)); do
+        second_sum=$((second_sum + values[i]))
+    done
+
+    local first_avg=$((first_sum / half))
+    local second_count=$((count - half))
+    [[ $second_count -lt 1 ]] && second_count=1
+    local second_avg=$((second_sum / second_count))
+
+    if (( second_avg < first_avg * 80 / 100 )); then
+        echo "down"
+    elif (( second_avg > first_avg * 120 / 100 )); then
+        echo "up"
+    else
+        echo "flat"
+    fi
+}
+
+stats_confidence_message() {
+    local confidence="${1:-0}"
+    awk -v confidence="$confidence" 'BEGIN {
+        if (confidence >= 0.90) print "Spec looks stable; review before more runs.";
+        else if (confidence >= 0.75) print "Nearly converged; consider 1-2 more rounds.";
+        else if (confidence >= 0.50) print "Convergence is forming; keep iterating.";
+        else print "Changes are still broad; keep iterating.";
+    }'
+}
+
+show_stats_compact() {
+    local workflow="$1"
+    local metrics="$2"
+
+    local round_count average_size avg_human confidence confidence_pct estimated_remaining
+    round_count=$(echo "$metrics" | jq -r '.rounds | length' 2>/dev/null || echo "0")
+    average_size=$(echo "$metrics" | jq -r '[.rounds[].output.char_count // 0] | if length > 0 then (add / length | floor) else 0 end' 2>/dev/null || echo "0")
+    if [[ ! "$average_size" =~ ^[0-9]+$ ]]; then
+        average_size=0
+    fi
+    avg_human=$(format_bytes "$average_size")
+    confidence=$(echo "$metrics" | jq -r '.convergence.confidence // 0' 2>/dev/null || echo "0")
+    confidence_pct=$(format_percent "$confidence")
+    estimated_remaining=$(echo "$metrics" | jq -r '.convergence.estimated_rounds_remaining // ""' 2>/dev/null || echo "")
+
+    print_banner
+    print_header "STATS: $workflow"
+    printf "  Rounds: %s\n" "$round_count" >&2
+    printf "  Avg output: %s\n" "$avg_human" >&2
+    printf "  Confidence: %s\n" "$confidence_pct" >&2
+    printf "  Remaining: %s rounds\n" "${estimated_remaining:-N/A}" >&2
+
+    local has_backfilled
+    has_backfilled=$(echo "$metrics" | jq -r 'any(.rounds[]?; .backfilled == true) // false' 2>/dev/null || echo "false")
+    if [[ "$has_backfilled" == "true" ]]; then
+        print_dim "  Backfilled metrics; structure signals may be approximate."
+    fi
+
+    local output_sizes=()
+    mapfile -t output_sizes < <(echo "$metrics" | jq -r '.rounds | sort_by(.round) | .[].output.char_count // 0')
+    local change_values=()
+    mapfile -t change_values < <(echo "$metrics" | jq -r '.rounds | sort_by(.round) | map((.changes_from_previous.diff_ratio // 0) * 100 | floor) | .[]')
+    local similarity_values=()
+    mapfile -t similarity_values < <(echo "$metrics" | jq -r '.rounds | sort_by(.round) | map((.changes_from_previous.similarity_score // 0) * 100 | floor) | .[]')
+
+    if [[ ${#output_sizes[@]} -ge 3 ]]; then
+        printf "  Trends: size %s, change %s, sim %s\n" \
+            "$(stats_trend_word "${output_sizes[@]}")" \
+            "$(stats_trend_word "${change_values[@]}")" \
+            "$(stats_trend_word "${similarity_values[@]}")" >&2
+    fi
+
+    local output_signal change_signal similarity_signal
+    output_signal=$(safe_json_num "$metrics" '.convergence.signals.output_size_trend' "0")
+    change_signal=$(safe_json_num "$metrics" '.convergence.signals.change_velocity' "0")
+    similarity_signal=$(safe_json_num "$metrics" '.convergence.signals.similarity_trend' "0")
+    printf "  Signals: output %s, velocity %s, sim %s\n" \
+        "$(stats_signal_word "$output_signal")" \
+        "$(stats_signal_word "$change_signal")" \
+        "$(stats_signal_word "$similarity_signal")" >&2
+
+    echo "" >&2
+    echo "  Recent rounds" >&2
+    local round_num output_size added deleted similarity ts date_only
+    while IFS=$'\t' read -r round_num output_size added deleted similarity ts; do
+        [[ -n "$round_num" ]] || continue
+        date_only=$(format_iso_date "$ts")
+        printf "    #%s %s, changes %s, sim %s, %s\n" \
+            "$round_num" \
+            "$(format_bytes "$output_size")" \
+            "$(format_changes "$added" "$deleted")" \
+            "$(format_float "$similarity")" \
+            "$date_only" >&2
+    done < <(echo "$metrics" | jq -r '.rounds | sort_by(.round) | .[-4:][] | [.round, (.output.char_count // 0), (.changes_from_previous.lines_added // null), (.changes_from_previous.lines_deleted // null), (.changes_from_previous.similarity_score // null), (.timestamp // "")] | @tsv')
+
+    echo "" >&2
+    print_info "$(stats_confidence_message "$confidence")"
+    if stats_number_at_least "$confidence" "0.90"; then
+        print_dim "Next: review the latest output before launching more rounds."
+    else
+        print_dim "Next: apr run $((round_count + 1))"
+    fi
+}
+
 show_stats_full() {
     local workflow="$1"
 
@@ -5301,6 +5438,13 @@ show_stats_full() {
         print_warning "No rounds recorded yet for workflow '$workflow'"
         print_info "Run 'apr run 1' to start your first revision round"
         return 0
+    fi
+
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+    if [[ "$layout" == "compact" ]]; then
+        show_stats_compact "$workflow" "$metrics"
+        return $?
     fi
 
     local has_backfilled
