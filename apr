@@ -2056,6 +2056,14 @@ lint_collect_findings() {
                 "null"
         fi
     fi
+
+    # bd-35i: strict mode (APR_FAIL_ON_WARN=1) promotes every recorded
+    # warning into an error so the lint gate blocks on what would
+    # otherwise be informational findings. No-op when strict mode is
+    # off; idempotent within a single pass.
+    if command -v apr_lib_validate_finalize_strict >/dev/null 2>&1; then
+        apr_lib_validate_finalize_strict
+    fi
 }
 
 lint_result_code() {
@@ -2182,6 +2190,32 @@ cmd_prompts() {
             apr_fail "usage_error" "Subcommand required: compile, lint" "Usage: apr prompts {compile|lint} [options]"
             ;;
     esac
+}
+
+cmd_capabilities() {
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+    "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
+}
+
+cmd_doctor() {
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+    
+    if [[ "$STATS_JSON" == "true" ]]; then
+        # Merge outputs if possible or just run sequential
+        # For simplicity in Bash, we'll run them and the last one wins the exit code
+        # but the robot might prefer a combined report.
+        # For now, let's just run them.
+        "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
+        python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/premortem-check.py" "${args[@]}"
+    else
+        print_bold "--- Provider Capabilities ---"
+        "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
+        echo ""
+        print_bold "--- Premortem Hardening ---"
+        python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/premortem-check.py" "${args[@]}"
+    fi
 }
 
 robot_lint_gate() {
@@ -6968,6 +7002,10 @@ cmd_robot() {
                 SKIP_LINT=true
                 shift
                 ;;
+            --fail-on-warn)
+                export APR_FAIL_ON_WARN=1
+                shift
+                ;;
             -*)
                 # Use jq for proper escaping of user input in JSON
                 robot_fail "usage_error" "$(jq -nc --arg opt "$1" '{option: $opt}')" "Unknown option: $1"
@@ -7060,6 +7098,8 @@ show_help() {
         gum style --foreground 214 --bold "COMMANDS" >&2
         gum style --foreground 39 "  Core Workflow" >&2
         echo "    $(gum style --foreground 82 'run <round>')        Run a revision round" >&2
+        echo "    $(gum style --foreground 82 'capabilities')       Check provider capabilities and docs" >&2
+        echo "    $(gum style --foreground 82 'doctor')             Validate system readiness and artifacts" >&2
         echo "    $(gum style --foreground 82 'prompts <cmd>')      v18 prompt compilation and linting" >&2
         echo "    $(gum style --foreground 82 'lint [round]')       Validate workflow/docs/templates" >&2
         echo "    $(gum style --foreground 82 'setup')              Interactive workflow setup wizard" >&2
@@ -7182,6 +7222,8 @@ show_help() {
         echo -e "${BOLD}${YELLOW}COMMANDS${NC}" >&2
         echo -e "  ${CYAN}Core Workflow${NC}" >&2
         echo -e "    ${GREEN}run <round>${NC}        Run a revision round" >&2
+        echo -e "    ${GREEN}capabilities${NC}       Check provider capabilities and docs" >&2
+        echo -e "    ${GREEN}doctor${NC}             Validate system readiness and artifacts" >&2
         echo -e "    ${GREEN}prompts <cmd>${NC}      v18 prompt compilation and linting" >&2
         echo -e "    ${GREEN}lint [round]${NC}       Validate workflow/docs/templates" >&2
         echo -e "    ${GREEN}setup${NC}              Interactive workflow setup wizard" >&2
@@ -7607,6 +7649,12 @@ main() {
 
     # Execute command
     case "$command" in
+        capabilities)
+            cmd_capabilities "${positional_args[@]}"
+            ;;
+        doctor)
+            cmd_doctor "${positional_args[@]}"
+            ;;
         prompts)
             cmd_prompts "${positional_args[@]}"
             ;;
