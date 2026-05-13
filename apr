@@ -1365,6 +1365,15 @@ preflight_check() {
 PROMPT_QC_REASON=""
 PROMPT_QC_DETAILS=""
 
+redact_diagnostic_text_if_requested() {
+    local text="${1-}"
+    if [[ "${APR_REDACT:-}" == "1" ]] && command -v apr_lib_redact_prompt >/dev/null 2>&1; then
+        apr_lib_redact_prompt "$text"
+    else
+        printf '%s' "$text"
+    fi
+}
+
 # Validate that the prompt we send to Oracle/ChatGPT does not contain obvious
 # unexpanded placeholders (e.g. {{README}}). APR does NOT expand mustache-style
 # placeholders; if they appear here, the model will see them verbatim.
@@ -1400,6 +1409,8 @@ prompt_quality_check() {
         if [[ -n "$config_path" && -f "$config_path" ]]; then
             cfg_hits=$(awk 'index($0,"{{") || index($0,"}}") { printf "  %s:%d: %s\n", FILENAME, NR, $0 }' "$config_path" | head -n 8)
         fi
+        prompt_hits=$(redact_diagnostic_text_if_requested "$prompt_hits")
+        cfg_hits=$(redact_diagnostic_text_if_requested "$cfg_hits")
 
         PROMPT_QC_DETAILS=$(
             cat <<EOF
@@ -1786,10 +1797,14 @@ input() {
         fi
     else
         if [[ -n "$default" ]]; then
-            read -rp "$prompt [$default]: " value
+            if ! read -rp "$prompt [$default]: " value; then
+                return 1
+            fi
             echo "${value:-$default}"
         else
-            read -rp "$prompt: " value
+            if ! read -rp "$prompt: " value; then
+                return 1
+            fi
             echo "$value"
         fi
     fi
@@ -2502,6 +2517,9 @@ lint_collect_findings() {
 
     if prompt_with_impl=$(build_revision_prompt "true" "$wf_file" 2>/dev/null); then
         apr_lib_validate_prompt_qc "$prompt_with_impl" "template_with_impl" "$wf_file"
+        if command -v apr_lib_validate_secret_scan >/dev/null 2>&1; then
+            apr_lib_validate_secret_scan "$prompt_with_impl" "template_with_impl" "$wf_file"
+        fi
     else
         apr_lib_validate_add_error "validation_failed" \
             "Failed to render implementation workflow template." \
@@ -4873,7 +4891,10 @@ run_setup() {
     print_step 1 5 "Workflow name"
     local workflow_name
     while true; do
-        workflow_name=$(input "Workflow name" "default")
+        if ! workflow_name=$(input "Workflow name" "default"); then
+            apr_fail "config_error" "apr setup requires interactive input" \
+                "Run in a terminal, or pipe all required setup answers via stdin."
+        fi
         # Validate: safe filename segment (no slashes/spaces)
         if ! is_valid_workflow_name "$workflow_name"; then
             print_error "Invalid name: use only letters, numbers, dots, hyphens, underscores"
@@ -4893,7 +4914,10 @@ run_setup() {
     # Step 2: Project description
     print_step 2 5 "Project description"
     local description
-    description=$(input "Brief description" "Iterative specification refinement")
+    if ! description=$(input "Brief description" "Iterative specification refinement"); then
+        apr_fail "config_error" "apr setup requires interactive input" \
+            "Run in a terminal, or pipe all required setup answers via stdin."
+    fi
     echo "" >&2
 
     # Step 3: README/Overview document
@@ -5093,7 +5117,7 @@ run_round() {
         exit $EXIT_CONFIG_ERROR
     fi
 
-    if [[ "$dry_run" != "true" && "$render" != "true" ]]; then
+    if [[ "$dry_run" != "true" && "$render" != "true" && "$manifest_only" != "true" ]]; then
         if ! check_oracle; then
             if [[ -n "${APR_NO_NPX:-}" ]]; then
                 apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle; APR_NO_NPX is set, so npx fallback is disabled"
@@ -5122,7 +5146,7 @@ run_round() {
     fi
 
     # Run pre-flight checks (unless skipped or dry-run/render mode)
-    if [[ "$skip_preflight" != "true" && "$dry_run" != "true" && "$render" != "true" ]]; then
+    if [[ "$skip_preflight" != "true" && "$dry_run" != "true" && "$render" != "true" && "$manifest_only" != "true" ]]; then
         local impl_for_preflight=""
         [[ "$include_impl" == "true" && -n "$impl_path" ]] && impl_for_preflight="$impl_path"
 
@@ -5320,7 +5344,7 @@ run_round() {
     # to enable optional flags when preflight is skipped.
     # Note: In dry-run/render mode, preflight_check doesn't run, so check_oracle
     # hasn't set ORACLE_CMD yet. Call it here if needed.
-    if [[ "$render" != "true" ]]; then
+    if [[ "$render" != "true" && "$manifest_only" != "true" ]]; then
         if [[ ${#ORACLE_CMD[@]} -eq 0 ]]; then
             if ! check_oracle; then
                 if [[ "$dry_run" == "true" ]]; then
@@ -5341,7 +5365,7 @@ run_round() {
     fi
 
     # Dry run mode
-    if [[ "$dry_run" == "true" ]]; then
+    if [[ "$dry_run" == "true" && "$manifest_only" != "true" ]]; then
         if [[ "$copy_prompt" == "true" ]]; then
             copy_resolved_prompt_to_clipboard "$prompt" || true
         fi
@@ -9942,7 +9966,7 @@ main() {
     else
         # Best-effort Oracle detection for dry-run output. Real run/render
         # paths check Oracle after the lint gate inside run_round().
-        if [[ ("$command_is_round" == "true" || "$command" == "run") && "$DRY_RUN" == "true" && "$RENDER" != "true" ]]; then
+        if [[ ("$command_is_round" == "true" || "$command" == "run") && "$DRY_RUN" == "true" && "$RENDER" != "true" && "${MANIFEST_ONLY:-false}" != "true" ]]; then
             if ! check_oracle; then
                 ORACLE_CMD=("oracle")
                 [[ "$QUIET_MODE" != "true" ]] && print_warning "Oracle not found; dry run will use a placeholder command"
