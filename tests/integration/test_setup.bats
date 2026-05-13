@@ -14,7 +14,7 @@ setup() {
     setup_test_environment
     log_test_start "${BATS_TEST_NAME}"
 
-    cd "$TEST_PROJECT"
+    cd "$TEST_PROJECT" || return 1
 
     # Create sample documents for setup wizard to find
     cat > README.md << 'EOF'
@@ -49,6 +49,20 @@ EOF
 teardown() {
     log_test_end "${BATS_TEST_NAME}" "$([[ ${status:-0} -eq 0 ]] && echo pass || echo fail)"
     teardown_test_environment
+}
+
+run_setup_capture() {
+    local input="$1"
+    shift
+
+    local capture_dir="${ARTIFACT_DIR:-$TEST_DIR}"
+    local stdout_file="$capture_dir/setup.stdout"
+    local stderr_file="$capture_dir/setup.stderr"
+
+    CAPTURED_STATUS=0
+    env "$@" "$APR_SCRIPT" setup >"$stdout_file" 2>"$stderr_file" <<< "$input" || CAPTURED_STATUS=$?
+    CAPTURED_STDOUT="$(<"$stdout_file")"
+    CAPTURED_STDERR="$(<"$stderr_file")"
 }
 
 # =============================================================================
@@ -215,6 +229,66 @@ EOF
     # Should handle non-TTY gracefully (may exit or use defaults)
     # Exit code 4 is config error which is acceptable for non-interactive
     [[ $status -eq 0 ]] || [[ $status -eq 4 ]] || [[ "$output" == *"interactive"* ]] || [[ "$output" == *"Setup"* ]]
+}
+
+@test "setup ux: guided flow has step headers, validation feedback, and success CTA" {
+    run_setup_capture \
+        $'uxflow\n\nREADME.md\nSPECIFICATION.md\nn\n1\n' \
+        APR_NO_GUM=1 NO_COLOR=1 APR_LAYOUT=desktop
+
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+    log_test_actual "stdout" "$CAPTURED_STDOUT"
+    log_test_actual "status" "$CAPTURED_STATUS"
+
+    [[ "$CAPTURED_STATUS" -eq 0 ]]
+    [[ -z "$CAPTURED_STDOUT" ]]
+    [[ "$CAPTURED_STDERR" == *"Welcome to the APR Setup Wizard!"* ]]
+    [[ "$CAPTURED_STDERR" == *"[1/5] Workflow name"* ]]
+    [[ "$CAPTURED_STDERR" == *"[2/5] Project description"* ]]
+    [[ "$CAPTURED_STDERR" == *"[3/5] README/Overview document"* ]]
+    [[ "$CAPTURED_STDERR" == *"[4/5] Specification document"* ]]
+    [[ "$CAPTURED_STDERR" == *"[Optional] Implementation document"* ]]
+    [[ "$CAPTURED_STDERR" == *"[5/5] Review preferences"* ]]
+    [[ "$CAPTURED_STDERR" == *"[ok] README: README.md"* ]]
+    [[ "$CAPTURED_STDERR" == *"[ok] Specification: SPECIFICATION.md"* ]]
+    [[ "$CAPTURED_STDERR" == *"Workflow 'uxflow' created successfully!"* ]]
+    [[ "$CAPTURED_STDERR" == *"apr run 1"* ]]
+    [[ "$CAPTURED_STDERR" != *$'\033'* ]]
+    [[ -f ".apr/workflows/uxflow.yaml" ]]
+}
+
+@test "setup ux: compact layout stays single-column and no-color" {
+    run_setup_capture \
+        $'compactflow\n\nREADME.md\nSPECIFICATION.md\nn\n1\n' \
+        APR_NO_GUM=1 NO_COLOR=1 APR_LAYOUT=compact APR_TERM_COLUMNS=64 APR_TERM_LINES=20
+
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+
+    [[ "$CAPTURED_STATUS" -eq 0 ]]
+    [[ -z "$CAPTURED_STDOUT" ]]
+    [[ "$CAPTURED_STDERR" == *"APR v"* ]]
+    [[ "$CAPTURED_STDERR" == *"[1/5] Workflow name"* ]]
+    [[ "$CAPTURED_STDERR" == *"Workflow 'compactflow' created successfully!"* ]]
+    [[ "$CAPTURED_STDERR" != *$'\033'* ]]
+
+    local max_width
+    max_width=$(printf '%s\n' "$CAPTURED_STDERR" | wc -L | awk '{print $1}')
+    [[ "$max_width" =~ ^[0-9]+$ ]]
+    (( max_width <= 80 ))
+}
+
+@test "setup ux: missing document error is actionable and stderr-only" {
+    run_setup_capture \
+        $'badflow\n\nmissing.md\nSPECIFICATION.md\nn\n1\n' \
+        APR_NO_GUM=1 NO_COLOR=1 APR_LAYOUT=compact
+
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+    log_test_actual "status" "$CAPTURED_STATUS"
+
+    [[ "$CAPTURED_STATUS" -eq 4 ]]
+    [[ -z "$CAPTURED_STDOUT" ]]
+    [[ "$CAPTURED_STDERR" == *"File not found: missing.md"* ]]
+    [[ "$CAPTURED_STDERR" != *$'\033'* ]]
 }
 
 # =============================================================================
