@@ -175,6 +175,32 @@ teardown() {
     fi
 }
 
+@test "guard: APR_REDACT=1 redacts placeholder diagnostic config hits" {
+    install_fixture_workflow "with_template.yaml" "guard-redact"
+
+    cat > "$TEST_PROJECT/.apr/workflows/guard-redact.yaml" <<'EOF'
+name: guard-redact-workflow
+documents:
+  readme: README.md
+  spec: SPECIFICATION.md
+oracle:
+  model: "5.2 Thinking"
+rounds:
+  output_dir: .apr/rounds/guard-redact
+template: |
+  Token near placeholder: sk-aabbccddeeff112233445566778899XYZABC {{README}}
+EOF
+
+    APR_REDACT=1 run_with_artifacts "$APR_SCRIPT" run 1 --dry-run --no-lint
+
+    [[ "$status" -ne 0 ]]
+    grep -Fq 'Config hits:' "$ARTIFACT_DIR/stderr.log"
+    grep -Fq '<<REDACTED:OPENAI_KEY>> {{README}}' "$ARTIFACT_DIR/stderr.log"
+    if grep -Fq 'sk-aabbccddeeff112233445566778899XYZABC' "$ARTIFACT_DIR/stderr.log"; then
+        return 1
+    fi
+}
+
 @test "redact: APR_REDACT=1 redacts resolved prompt before render" {
     install_fixture_workflow "with_template.yaml" "redact"
 

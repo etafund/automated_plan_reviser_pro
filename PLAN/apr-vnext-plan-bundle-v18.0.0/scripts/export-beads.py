@@ -71,15 +71,42 @@ def main():
                 created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'proposed'})
             else:
                 # Create the bead using `br create`
-                # Usage: br create "title" --body "..." --priority 1
+                # Usage: br create "title" --type task --description "..." --priority 1 --json
                 try:
-                    cmd = ['br', 'create', title, '--body', full_body, '--priority', str(priority)]
-                    logging.info(f"Executing: {' '.join(cmd)}")
-                    # In this environment, we might not have a working 'br' if it needs a real repo.
-                    # We'll mock the successful creation for the harness if it fails due to environment.
-                    # subprocess.run(cmd, check=True)
-                    created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'created'})
+                    cmd = [
+                        'br',
+                        'create',
+                        title,
+                        '--type',
+                        'task',
+                        '--description',
+                        full_body,
+                        '--priority',
+                        str(priority),
+                        '--json',
+                    ]
+                    logging.info("Executing: br create %r --type task --description <body> --priority %s --json", title, priority)
+                    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    bead = json.loads(result.stdout)
+                    created_beads.append({
+                        'title': title,
+                        'priority': priority,
+                        'item_id': item_id,
+                        'status': 'created',
+                        'bead_id': bead.get('id'),
+                    })
+                except FileNotFoundError:
+                    created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'failed'})
+                    errors.append(f"Failed to create bead '{title}': 'br' CLI not found in PATH")
+                except subprocess.CalledProcessError as e:
+                    created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'failed'})
+                    detail = e.stderr.strip() or e.stdout.strip() or f"exit code {e.returncode}"
+                    errors.append(f"Failed to create bead '{title}': br exited {e.returncode}: {detail}")
+                except json.JSONDecodeError as e:
+                    created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'failed'})
+                    errors.append(f"Failed to parse br create output for bead '{title}': {e}")
                 except Exception as e:
+                    created_beads.append({'title': title, 'priority': priority, 'item_id': item_id, 'status': 'failed'})
                     errors.append(f"Failed to create bead '{title}': {e}")
 
         logging.info(f"Export complete. Items processed: {len(plan_items)}")
