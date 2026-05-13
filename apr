@@ -2306,18 +2306,97 @@ cmd_doctor() {
     [[ "$STATS_JSON" == "true" ]] && args+=("--json")
     
     if [[ "$STATS_JSON" == "true" ]]; then
-        # Merge outputs if possible or just run sequential
-        # For simplicity in Bash, we'll run them and the last one wins the exit code
-        # but the robot might prefer a combined report.
-        # For now, let's just run them.
-        "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
-        python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/premortem-check.py" "${args[@]}"
+        local capabilities_json premortem_json combined_json
+        local capabilities_status premortem_status
+
+        set +e
+        capabilities_json=$("${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}")
+        capabilities_status=$?
+        premortem_json=$(python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/premortem-check.py" "${args[@]}")
+        premortem_status=$?
+        set -e
+
+        if ! combined_json=$(jq -n \
+            --argjson capabilities "$capabilities_json" \
+            --argjson premortem "$premortem_json" \
+            --argjson capabilities_status "$capabilities_status" \
+            --argjson premortem_status "$premortem_status" \
+            '{
+                ok: (($capabilities_status == 0) and ($premortem_status == 0) and ($capabilities.ok // false) and ($premortem.ok // false)),
+                schema_version: "json_envelope.v1",
+                data: {
+                    capabilities: $capabilities,
+                    premortem: $premortem
+                },
+                meta: {
+                    tool: "apr-doctor",
+                    bundle_version: ($capabilities.meta.bundle_version // $premortem.meta.bundle_version // "v18.0.0")
+                },
+                warnings: (($capabilities.warnings // []) + ($premortem.warnings // [])),
+                errors: (($capabilities.errors // []) + ($premortem.errors // [])),
+                commands: {
+                    next: "apr doctor --json"
+                },
+                next_command: null,
+                blocked_reason: (if (($capabilities_status == 0) and ($premortem_status == 0) and ($capabilities.ok // false) and ($premortem.ok // false)) then null else ($capabilities.blocked_reason // $premortem.blocked_reason // "doctor_check_failed") end),
+                fix_command: (if (($capabilities_status == 0) and ($premortem_status == 0) and ($capabilities.ok // false) and ($premortem.ok // false)) then null else ($capabilities.fix_command // $premortem.fix_command // "Inspect apr doctor sub-check output") end),
+                retry_safe: (($capabilities.retry_safe // false) and ($premortem.retry_safe // false))
+            }' 2>/dev/null); then
+            jq -n \
+                --arg capabilities_raw "$capabilities_json" \
+                --arg premortem_raw "$premortem_json" \
+                '{
+                    ok: false,
+                    schema_version: "json_envelope.v1",
+                    data: {
+                        capabilities_raw: $capabilities_raw,
+                        premortem_raw: $premortem_raw
+                    },
+                    meta: {
+                        tool: "apr-doctor",
+                        bundle_version: "v18.0.0"
+                    },
+                    warnings: [],
+                    errors: [{
+                        error_code: "doctor_invalid_subcheck_json",
+                        message: "apr doctor could not parse one or more sub-check JSON envelopes."
+                    }],
+                    commands: {
+                        next: "apr doctor --json"
+                    },
+                    next_command: "apr doctor --json",
+                    fix_command: "Inspect provider-capability-check.sh and premortem-check.py output.",
+                    blocked_reason: "doctor_invalid_subcheck_json",
+                    retry_safe: false
+                }'
+            return 1
+        fi
+
+        printf '%s\n' "$combined_json"
+        if [[ "$capabilities_status" -ne 0 ]]; then
+            return "$capabilities_status"
+        fi
+        return "$premortem_status"
     else
-        print_bold "--- Provider Capabilities ---"
+        local capabilities_status premortem_status
+
+        print_header "--- Provider Capabilities ---"
+        set +e
         "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
-        echo ""
-        print_bold "--- Premortem Hardening ---"
+        capabilities_status=$?
+        set -e
+
+        echo "" >&2
+        print_header "--- Premortem Hardening ---"
+        set +e
         python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/premortem-check.py" "${args[@]}"
+        premortem_status=$?
+        set -e
+
+        if [[ "$capabilities_status" -ne 0 ]]; then
+            return "$capabilities_status"
+        fi
+        return "$premortem_status"
     fi
 }
 

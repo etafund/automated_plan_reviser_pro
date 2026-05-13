@@ -146,38 +146,26 @@ teardown() {
 }
 
 # ===========================================================================
-# apr doctor — current behavior + the two bugs found
+# apr doctor — merged JSON envelope + human section headers
 # ===========================================================================
 
-@test "doctor: apr doctor --json delegates and produces parseable stream output" {
-    # Current behavior: TWO concatenated envelopes on stdout (tracked
-    # as bug bead icoy). Until that's fixed, the contract test here
-    # just asserts that *both* envelopes are present in the stream
-    # so the pipeline keeps catching regressions on either side.
+@test "doctor: apr doctor --json emits one merged v18 JSON envelope" {
     run_with_artifacts "$APR_SCRIPT" doctor --json
-    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+    [[ "$status" -eq 0 ]]
 
-    # Both envelopes appear. We pull them out as discrete JSON
-    # documents via `jq -s` (slurp into an array) — jq tolerates the
-    # concatenated stream, even though `json.loads` does not.
-    jq -se 'length == 2' < "$ARTIFACT_DIR/stdout.log" >/dev/null || {
-        echo "doctor --json: expected exactly 2 concatenated envelopes" >&2
-        echo "(see bead automated_plan_reviser_pro-icoy)" >&2
-        return 1
-    }
-    jq -se '.[0].schema_version == "json_envelope.v1"
-            and .[1].schema_version == "json_envelope.v1"' \
-        < "$ARTIFACT_DIR/stdout.log" >/dev/null
+    assert_v18_envelope "$ARTIFACT_DIR/stdout.log"
+    jq -e '
+        .meta.tool == "apr-doctor"
+        and .data.capabilities.schema_version == "json_envelope.v1"
+        and .data.premortem.schema_version == "json_envelope.v1"
+        and .ok == (.data.capabilities.ok and .data.premortem.ok)
+        and (.warnings | type == "array")
+        and (.errors | type == "array")
+        and (.retry_safe | type == "boolean")
+    ' "$ARTIFACT_DIR/stdout.log" >/dev/null
 }
 
 @test "doctor: --json output passes a single-document json.loads parse (strict)" {
-    # Currently fails: cmd_doctor (apr:~2213-2222) emits two envelopes
-    # back-to-back in --json mode instead of merging them into one.
-    # Tracked as follow-up bug bead automated_plan_reviser_pro-icoy.
-    # Delete the skip below once the fix lands and this test will
-    # start enforcing the single-envelope contract.
-    skip "apr doctor --json emits two concatenated envelopes — see bead automated_plan_reviser_pro-icoy"
-
     run_with_artifacts "$APR_SCRIPT" doctor --json
     [[ "$status" -eq 0 ]]
     python3 -c "import json,sys; json.loads(open(sys.argv[1]).read())" \
@@ -185,14 +173,6 @@ teardown() {
 }
 
 @test "doctor: default (non-json) renders without stderr 'command not found' noise (strict)" {
-    # Currently fails: cmd_doctor calls `print_bold` which is not
-    # defined anywhere, so stderr leaks
-    #   apr: line 2213: print_bold: command not found
-    # before the underlying scripts run. Tracked as bug bead
-    # automated_plan_reviser_pro-vzyp. Delete the skip when the fix
-    # lands.
-    skip "apr doctor calls undefined print_bold — see bead automated_plan_reviser_pro-vzyp"
-
     run_with_artifacts "$APR_SCRIPT" doctor
     [[ "$status" -eq 0 ]]
     if grep -Eq 'command not found|: print_bold' "$ARTIFACT_DIR/stderr.log"; then
@@ -202,22 +182,15 @@ teardown() {
     fi
 }
 
-@test "doctor: default mode current behavior — exits 127 due to print_bold bug (pinned)" {
-    # Pin the CURRENT broken behavior so the next change here is
-    # visible: cmd_doctor calls undefined print_bold, set -euo pipefail
-    # in apr propagates the 127, the underlying scripts never run.
-    # When pane-6/7 lands the print_bold fix (bead vzyp), this test
-    # will turn red and the fixer can replace it with the strict
-    # exit-0 expectation. Until then, regressing TO a different broken
-    # state would also surface here.
+@test "doctor: default mode shows both human section headers" {
     run_with_artifacts "$APR_SCRIPT" doctor
-    [[ "$status" -eq 127 ]] || {
-        echo "doctor (non-json) exit drift: want 127 (print_bold not-found bug), got $status" >&2
-        echo "see beads automated_plan_reviser_pro-vzyp (the bug) and nmet (this harness)" >&2
+    [[ "$status" -eq 0 ]] || {
+        echo "doctor (non-json) exit drift: want 0, got $status" >&2
         cat "$ARTIFACT_DIR/stderr.log" >&2
         return 1
     }
-    grep -Fq "print_bold: command not found" "$ARTIFACT_DIR/stderr.log"
+    grep -Fq "Provider Capabilities" "$ARTIFACT_DIR/stderr.log"
+    grep -Fq "Premortem Hardening" "$ARTIFACT_DIR/stderr.log"
 }
 
 # ===========================================================================
