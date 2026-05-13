@@ -156,6 +156,15 @@ template: |
 YAML
 }
 
+install_workflow_with_secret_doc() {
+    install_workflow_valid
+    cat > README.md <<'EOF'
+# Lint test README
+
+token=sk-aabbccddeeff112233445566778899XYZABC
+EOF
+}
+
 # ---------------------------------------------------------------------------
 # Setup / Teardown
 # ---------------------------------------------------------------------------
@@ -299,6 +308,20 @@ teardown() {
         return 1
     fi
     grep -Fq "Lint passed" "$ARTIFACT_DIR/stderr.log"
+}
+
+@test "lint contract: human lint warns on secrets in workflow documents (exit 0)" {
+    install_workflow_with_secret_doc
+    run_with_artifacts "$APR_SCRIPT" lint 1
+    assert_exit 0
+    grep -Fq "secret_detected" "$ARTIFACT_DIR/stderr.log"
+}
+
+@test "lint contract: strict lint fails on secrets in workflow documents" {
+    install_workflow_with_secret_doc
+    APR_FAIL_ON_WARN=1 run_with_artifacts "$APR_SCRIPT" lint 1
+    assert_human_failure "validation_failed" 4
+    grep -Fq "secret_detected" "$ARTIFACT_DIR/stderr.log"
 }
 
 @test "lint contract: human lint with too many args → APR_ERROR_CODE=usage_error + exit 2" {

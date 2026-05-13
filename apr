@@ -2470,8 +2470,28 @@ lint_collect_findings() {
     apr_lib_validate_documents_exist "$required_paths" "$optional_paths"
 
     local prompt_no_impl prompt_with_impl
+    if command -v apr_lib_validate_secret_scan >/dev/null 2>&1; then
+        local scan_path scan_text scan_label
+        for scan_path in "$readme_path" "$spec_path"; do
+            [[ -n "$scan_path" && -f "$scan_path" && -r "$scan_path" ]] || continue
+            if scan_text=$(<"$scan_path"); then
+                scan_label=$(basename "$scan_path")
+                apr_lib_validate_secret_scan "$scan_text" "$scan_label" "$scan_path"
+            fi
+        done
+        if [[ -n "$impl_path" && -f "$impl_path" && -r "$impl_path" ]]; then
+            if scan_text=$(<"$impl_path"); then
+                scan_label=$(basename "$impl_path")
+                apr_lib_validate_secret_scan "$scan_text" "$scan_label" "$impl_path"
+            fi
+        fi
+    fi
+
     if prompt_no_impl=$(build_revision_prompt "false" "$wf_file" 2>/dev/null); then
         apr_lib_validate_prompt_qc "$prompt_no_impl" "template" "$wf_file"
+        if command -v apr_lib_validate_secret_scan >/dev/null 2>&1; then
+            apr_lib_validate_secret_scan "$prompt_no_impl" "template" "$wf_file"
+        fi
     else
         apr_lib_validate_add_error "validation_failed" \
             "Failed to render workflow template." \
