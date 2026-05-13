@@ -39,6 +39,7 @@
 #           APR_LEDGER_REMOTE_HOST     (default: null)
 #           APR_LEDGER_ORACLE_FLAGS    (JSON array string, default: [])
 #           APR_LEDGER_MANIFEST_HASH   (default: null)
+#           APR_LEDGER_TRUST_JSON      (default: null)
 #
 #   apr_lib_ledger_build_finished <workflow> <round> <slug> <run_id>
 #                                 <started_at> <finished_at> <state>
@@ -48,8 +49,9 @@
 #                                 <busy_wait_count> <busy_wait_total_ms>
 #       Echo a JSON document for the terminal-state ledger. Same env-var
 #       knobs apply, plus:
-#           APR_LEDGER_WARNINGS_JSON   (JSON array string, default: [])
-#           APR_LEDGER_OVERRIDES_JSON  (JSON array string, default: [])
+#           APR_LEDGER_WARNINGS_JSON     (JSON array string, default: [])
+#           APR_LEDGER_OVERRIDES_JSON    (JSON array string, default: [])
+#           APR_LEDGER_FILES_REPORT_JSON (JSON object string, default: null)
 #
 #   apr_lib_ledger_write_start  <path> <json_document>
 #   apr_lib_ledger_write_finish <path> <json_document>
@@ -223,6 +225,7 @@ apr_lib_ledger_build_started() {
     local model="${9:?model required}"
 
     local manifest_hash="${APR_LEDGER_MANIFEST_HASH:-null}"
+    local trust_json="${APR_LEDGER_TRUST_JSON:-null}"
     local oracle_obj
     oracle_obj=$(_apr_ledger_oracle_object "$engine" "$model")
 
@@ -252,7 +255,13 @@ apr_lib_ledger_build_started() {
     _apr_ledger_raw_prop "output_path" "null" 0
     printf '},'
     # Execution counters all start at zero.
-    printf '"execution":{"retries_count":0,"busy_wait_count":0,"busy_wait_total_ms":0}'
+    printf '"execution":{"retries_count":0,"busy_wait_count":0,"busy_wait_total_ms":0},'
+    if [[ "$trust_json" == "null" ]]; then
+        # Default trust signals for started run
+        printf '"trust":{"files_report_ok":false,"files_report_supported":false}'
+    else
+        _apr_ledger_raw_prop "trust" "$trust_json" 0
+    fi
     printf '}'
 }
 
@@ -281,6 +290,8 @@ apr_lib_ledger_build_finished() {
     local manifest_hash="${APR_LEDGER_MANIFEST_HASH:-null}"
     local warnings="${APR_LEDGER_WARNINGS_JSON:-[]}"
     local overrides="${APR_LEDGER_OVERRIDES_JSON:-[]}"
+    local trust_json="${APR_LEDGER_TRUST_JSON:-null}"
+    local files_report_json="${APR_LEDGER_FILES_REPORT_JSON:-null}"
     local oracle_obj
     oracle_obj=$(_apr_ledger_oracle_object "$engine" "$model")
 
@@ -335,7 +346,14 @@ apr_lib_ledger_build_finished() {
         "$retries_count" "$busy_wait_count" "$busy_wait_total_ms"
     # Warnings + overrides arrays (raw JSON pass-through).
     _apr_ledger_raw_prop "warnings" "$warnings" 1
-    _apr_ledger_raw_prop "overrides" "$overrides" 0
+    _apr_ledger_raw_prop "overrides" "$overrides" 1
+    # Trust + Files Report
+    if [[ "$trust_json" == "null" ]]; then
+        printf '"trust":{"files_report_ok":true,"files_report_supported":false},'
+    else
+        _apr_ledger_raw_prop "trust" "$trust_json" 1
+    fi
+    _apr_ledger_raw_prop "files_report" "$files_report_json" 0
     printf '}'
 }
 

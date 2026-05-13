@@ -244,6 +244,49 @@
         "redactor": { "type": "string" },
         "redactions_count": { "type": "integer", "minimum": 0 }
       }
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived trust and provenance signals (bd-1tl).",
+      "properties": {
+        "files_report_ok": {
+          "type": "boolean",
+          "description": "True if Oracle's reported files match APR's expected files exactly."
+        },
+        "files_report_supported": {
+          "type": "boolean",
+          "description": "True if the Oracle version used supports --files-report."
+        }
+      }
+    },
+    "files_report": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "description": "Detailed results from Oracle's --files-report (bd-1tl).",
+      "properties": {
+        "reported_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "status"],
+            "properties": {
+              "path": { "type": "string" },
+              "status": { "type": "string" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "mismatches": {
+          "type": "object",
+          "properties": {
+            "missing": { "type": "array", "items": { "type": "string" } },
+            "extra": { "type": "array", "items": { "type": "string" } },
+            "size_mismatch": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "parse_error": { "type": ["string", "null"] }
+      }
     }
   }
 }

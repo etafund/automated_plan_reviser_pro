@@ -554,6 +554,7 @@ apr_lib_validate_workflow_schema() {
     )
 
     local key val line=0
+    local has_thinking_time=0
     while IFS=: read -r key val || [[ -n "$key" ]]; do
         line=$((line + 1))
         # Strip whitespace and quotes
@@ -576,7 +577,46 @@ apr_lib_validate_workflow_schema() {
                 "$wf_file:$line" \
                 "$(printf '{"key":"%s"}' "$(_apr_validate_json_escape "$key")")"
         fi
+
+        # Model policy (bd-19x)
+        if [[ "$key" == "model" ]]; then
+            local m=$(printf '%s' "$val" | xargs)
+            if [[ "${APR_ALLOW_NONPRO_MODELS:-0}" != "1" ]]; then
+                # Allow list: Thinking, Pro, o1, o3, opus, 4.7, 5.2
+                if [[ ! "$m" =~ (Thinking|Pro|o1|o3|opus|4.7|5.2) ]]; then
+                    apr_lib_validate_add_warning "config_warning" \
+                        "Model '$m' may produce lower quality refinements." \
+                        "Recommended: Use a thinking-enabled or Pro model (e.g. 'GPT Pro 5.2 Thinking'). Silence with APR_ALLOW_NONPRO_MODELS=1." \
+                        "$wf_file:$line" \
+                        "$(printf '{"model":"%s"}' "$(_apr_validate_json_escape "$m")")"
+                fi
+            fi
+        fi
+
+        # Thinking time policy (bd-19x)
+        if [[ "$key" == "thinking_time" ]]; then
+            has_thinking_time=1
+            local tt=$(printf '%s' "$val" | xargs)
+            if [[ "${APR_ALLOW_LIGHT_THINKING:-0}" != "1" ]]; then
+                if [[ "$tt" =~ ^[0-9]+$ ]] && (( tt < 60 )); then
+                     apr_lib_validate_add_warning "config_warning" \
+                        "Low thinking time: ${tt}s" \
+                        "Thinking time below 60s is not recommended for high-quality reasoning. Set to 60+ or set APR_ALLOW_LIGHT_THINKING=1." \
+                        "$wf_file:$line" \
+                        "$(printf '{"thinking_time":%d}' "$tt")"
+                fi
+            fi
+        fi
     done < "$wf_file"
+
+    # Thinking time missing policy (bd-19x)
+    if [[ $has_thinking_time -eq 0 && "${APR_ALLOW_LIGHT_THINKING:-0}" != "1" ]]; then
+        apr_lib_validate_add_warning "config_warning" \
+            "Thinking time not specified." \
+            "Explicit thinking_time (e.g. 60) is recommended for stable reasoning. Silence with APR_ALLOW_LIGHT_THINKING=1." \
+            "$wf_file" \
+            "null"
+    fi
 
     # Check for missing required keys
     local req

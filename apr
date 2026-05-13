@@ -427,7 +427,7 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/template.sh "$lib_dir"/validate.sh "$lib_dir"/ledger.sh; do
+    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/queue.sh "$lib_dir"/template.sh "$lib_dir"/validate.sh "$lib_dir"/ledger.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -2719,6 +2719,699 @@ cmd_workflow_explain() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Queue Commands
+# -----------------------------------------------------------------------------
+
+apr_queue_fail() {
+    local code="${1:-internal_error}"
+    local message="${2:-Queue command failed}"
+    local hint="${3:-}"
+    local data="${4:-{}}"
+
+    if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+        robot_fail "$code" "$data" "$message"
+    else
+        apr_fail "$code" "$message" "$hint"
+    fi
+}
+
+apr_queue_require_runtime() {
+    if ! declare -F apr_lib_queue_paths >/dev/null 2>&1; then
+        apr_queue_fail "dependency_missing" \
+            "Queue support is unavailable" \
+            "Ensure lib/queue.sh exists and APR_LIB_DIR points at APR's lib directory." \
+            '{"dependency":"lib/queue.sh"}'
+        return $?
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        apr_queue_fail "dependency_missing" \
+            "Queue commands require python3" \
+            "Install python3 and retry." \
+            '{"dependency":"python3"}'
+        return $?
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        apr_queue_fail "dependency_missing" \
+            "Queue commands require jq" \
+            "Install jq and retry." \
+            '{"dependency":"jq"}'
+        return $?
+    fi
+}
+
+apr_queue_default_workflow() {
+    local workflow="${1:-${WORKFLOW:-}}"
+    if [[ -z "$workflow" && -f "$CONFIG_DIR/config.yaml" ]]; then
+        workflow=$(get_config_value "default_workflow" "$CONFIG_DIR/config.yaml" 2>/dev/null || echo "")
+    fi
+    workflow="${workflow:-default}"
+    printf '%s\n' "$workflow"
+}
+
+apr_queue_validate_workflow() {
+    local workflow="${1:?workflow required}"
+
+    if ! is_valid_workflow_name "$workflow"; then
+        apr_queue_fail "usage_error" \
+            "Invalid workflow name: $workflow" \
+            "Use only letters, numbers, dots, hyphens, underscores." \
+            "$(jq -nc --arg workflow "$workflow" '{argument:"workflow",value:$workflow}')"
+        return $?
+    fi
+
+    if [[ ! -f "$CONFIG_DIR/workflows/${workflow}.yaml" ]]; then
+        apr_queue_fail "not_configured" \
+            "Workflow '$workflow' not found" \
+            "Run 'apr setup' to create it." \
+            "$(jq -nc --arg workflow "$workflow" '{workflow:$workflow}')"
+        return $?
+    fi
+}
+
+apr_queue_paths_for() {
+    local workflow="${1:?workflow required}"
+    apr_lib_queue_paths "$workflow" "$PWD"
+}
+
+apr_queue_make_entry_id() {
+    python3 - <<'PY'
+import uuid
+print("q_" + uuid.uuid4().hex)
+PY
+}
+
+apr_queue_resolve_include_impl() {
+    local workflow="${1:?workflow required}"
+    local round_num="${2:?round required}"
+    local requested="${3:-false}"
+    local config_path="$CONFIG_DIR/workflows/${workflow}.yaml"
+    local include_impl="$requested"
+
+    if [[ "$include_impl" != "true" ]]; then
+        local impl_path impl_every_n
+        impl_path=$(yaml_unquote "$(get_config_value "implementation" "$config_path" 2>/dev/null || echo "")")
+        impl_every_n=$(yaml_unquote "$(get_config_value "impl_every_n" "$config_path" 2>/dev/null || echo "")")
+        if [[ -n "$impl_path" && -n "$impl_every_n" && "$impl_every_n" =~ ^[0-9]+$ && "$impl_every_n" -gt 0 ]]; then
+            if (( round_num % impl_every_n == 0 )); then
+                include_impl=true
+            fi
+        fi
+    fi
+
+    printf '%s\n' "$include_impl"
+}
+
+apr_queue_enqueue_event_json() {
+    local entry_id="${1:?entry_id required}"
+    local workflow="${2:?workflow required}"
+    local round_num="${3:?round required}"
+    local include_impl="${4:-false}"
+    local requested_slug="${5:-}"
+    local ts
+    ts="$(iso_timestamp)"
+
+    python3 - "$entry_id" "$workflow" "$round_num" "$include_impl" "$requested_slug" "$ts" <<'PY'
+import json, sys
+entry_id, workflow, round_num, include_impl, requested_slug, ts = sys.argv[1:]
+payload = {
+    "schema_version": "apr_queue_event.v1",
+    "ts": ts,
+    "event": "enqueue",
+    "entry_id": entry_id,
+    "workflow": workflow,
+    "round": int(round_num),
+    "include_impl": include_impl == "true",
+}
+if requested_slug:
+    payload["requested_slug"] = requested_slug
+print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+PY
+}
+
+apr_queue_cancel_event_json() {
+    local entry_id="${1:?entry_id required}"
+    local workflow="${2:?workflow required}"
+    local reason="${3:-operator}"
+    local ts
+    ts="$(iso_timestamp)"
+
+    python3 - "$entry_id" "$workflow" "$reason" "$ts" <<'PY'
+import json, sys
+entry_id, workflow, reason, ts = sys.argv[1:]
+payload = {
+    "schema_version": "apr_queue_event.v1",
+    "ts": ts,
+    "event": "cancel",
+    "entry_id": entry_id,
+    "workflow": workflow,
+    "canceled_at": ts,
+}
+if reason:
+    payload["reason"] = reason
+print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+PY
+}
+
+apr_queue_state_json() {
+    local events_file="${1:?events_file required}"
+    local workflow="${2:?workflow required}"
+    local limit="${3:-10}"
+
+    python3 - "$events_file" "$workflow" "$limit" <<'PY'
+import json, os, sys
+events_file, workflow, limit = sys.argv[1], sys.argv[2], int(sys.argv[3])
+by_id = {}
+order = []
+event_count = 0
+partial = False
+
+if os.path.exists(events_file):
+    with open(events_file, encoding="utf-8") as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        is_last = i == len(lines) - 1
+        if is_last and not line.endswith("\n"):
+            partial = True
+            continue
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            if is_last:
+                partial = True
+                continue
+            raise
+        event_count += 1
+        entry_id = event.get("entry_id")
+        if not entry_id:
+            continue
+        if entry_id not in by_id:
+            by_id[entry_id] = {"entry_id": entry_id, "status": "unknown", "events": 0}
+            order.append(entry_id)
+        state = by_id[entry_id]
+        state["events"] += 1
+        state["_last_index"] = i
+        kind = event.get("event")
+        if kind == "enqueue":
+            state.update({
+                "status": "queued",
+                "workflow": event.get("workflow"),
+                "round": event.get("round"),
+                "include_impl": event.get("include_impl", False),
+            })
+            if "requested_slug" in event:
+                state["requested_slug"] = event["requested_slug"]
+        elif kind == "start":
+            if state.get("status") not in ("done", "failed", "canceled"):
+                state["status"] = "running"
+            state["runner_id"] = event.get("runner_id")
+            state["started_at"] = event.get("started_at")
+        elif kind == "finish":
+            if state.get("status") != "canceled":
+                state["status"] = "done"
+            state.update({
+                "ok": True,
+                "code": event.get("code"),
+                "exit_code": event.get("exit_code"),
+                "output_path": event.get("output_path"),
+                "slug": event.get("slug"),
+                "finished_at": event.get("finished_at"),
+            })
+        elif kind == "fail":
+            if state.get("status") != "canceled":
+                state["status"] = "failed"
+            state.update({
+                "ok": False,
+                "code": event.get("code"),
+                "exit_code": event.get("exit_code"),
+                "finished_at": event.get("finished_at"),
+                "reason": event.get("reason"),
+            })
+        elif kind == "cancel":
+            state.update({
+                "status": "canceled",
+                "canceled_at": event.get("canceled_at"),
+                "reason": event.get("reason"),
+            })
+
+entries = [by_id[entry_id] for entry_id in order]
+counts = {"queued": 0, "running": 0, "done": 0, "failed": 0, "canceled": 0}
+for entry in entries:
+    status = entry.get("status")
+    if status in counts:
+        counts[status] += 1
+
+running = next((entry for entry in entries if entry.get("status") == "running"), None)
+queued = [entry for entry in entries if entry.get("status") == "queued"]
+recent = [
+    entry for entry in sorted(entries, key=lambda item: item.get("_last_index", -1), reverse=True)
+    if entry.get("status") in ("done", "failed", "canceled")
+][:limit]
+
+for entry in entries:
+    entry.pop("_last_index", None)
+
+print(json.dumps({
+    "workflow": workflow,
+    "events_file": events_file,
+    "event_count": event_count,
+    "partial_trailing": partial,
+    "counts": counts,
+    "running": running,
+    "queued": queued,
+    "recent": recent,
+}, sort_keys=True))
+PY
+}
+
+apr_queue_print_human_status() {
+    local state_json="${1:?state json required}"
+    local workflow queued running done_count failed canceled partial
+
+    workflow=$(printf '%s' "$state_json" | jq -r '.workflow')
+    queued=$(printf '%s' "$state_json" | jq -r '.counts.queued')
+    running=$(printf '%s' "$state_json" | jq -r '.counts.running')
+    done_count=$(printf '%s' "$state_json" | jq -r '.counts.done')
+    failed=$(printf '%s' "$state_json" | jq -r '.counts.failed')
+    canceled=$(printf '%s' "$state_json" | jq -r '.counts.canceled')
+    partial=$(printf '%s' "$state_json" | jq -r '.partial_trailing')
+
+    print_header "QUEUE: $workflow"
+    printf '  queued:   %s\n' "$queued" >&2
+    printf '  running:  %s\n' "$running" >&2
+    printf '  done:     %s\n' "$done_count" >&2
+    printf '  failed:   %s\n' "$failed" >&2
+    printf '  canceled: %s\n' "$canceled" >&2
+    [[ "$partial" == "true" ]] && print_warning "Queue log has a partial trailing event; ignored for status."
+
+    if [[ "$running" -gt 0 ]]; then
+        echo "" >&2
+        echo "Running:" >&2
+        printf '%s' "$state_json" | jq -r '.running | "  \(.entry_id) round=\(.round) runner=\(.runner_id // "-")"' >&2
+    fi
+
+    if [[ "$queued" -gt 0 ]]; then
+        echo "" >&2
+        echo "Queued:" >&2
+        printf '%s' "$state_json" | jq -r '.queued[] | "  \(.entry_id) round=\(.round) include_impl=\(.include_impl)"' >&2
+    fi
+
+    if printf '%s' "$state_json" | jq -e '.recent | length > 0' >/dev/null; then
+        echo "" >&2
+        echo "Recent:" >&2
+        printf '%s' "$state_json" | jq -r '.recent[] | "  \(.entry_id) status=\(.status) round=\(.round // "-") code=\(.code // "-")"' >&2
+    fi
+}
+
+cmd_queue_help() {
+    cat >&2 <<'EOF'
+Usage:
+  apr queue add <round> [--workflow <name>] [--include-impl] [--slug <slug>] [--json]
+  apr queue status [--workflow <name>] [--limit <n>] [--json]
+  apr queue cancel <entry-id> [--workflow <name>] [--reason <text>] [--json]
+  apr queue run [--workflow <name>] [--once|--until-empty] [--max <n>] [--json]
+
+Robot:
+  apr robot queue add/status/cancel/run ...
+EOF
+}
+
+cmd_queue_add() {
+    local workflow="$1"
+    local round_num="$2"
+    local include_requested="$3"
+    local requested_slug="$4"
+    local json_output="$5"
+
+    apr_queue_validate_workflow "$workflow" || return $?
+    if [[ -z "$round_num" || ! "$round_num" =~ ^[0-9]+$ ]]; then
+        apr_queue_fail "usage_error" \
+            "Round must be a non-negative integer" \
+            "Usage: apr queue add <round>" \
+            "$(jq -nc --arg round "$round_num" '{argument:"round",value:$round}')"
+        return $?
+    fi
+
+    local paths events_file lock_file include_impl entry_id event_json data
+    mapfile -t paths < <(apr_queue_paths_for "$workflow")
+    events_file="${paths[0]}"
+    lock_file="${paths[1]}"
+    include_impl="$(apr_queue_resolve_include_impl "$workflow" "$round_num" "$include_requested")"
+    entry_id="$(apr_queue_make_entry_id)"
+    event_json="$(apr_queue_enqueue_event_json "$entry_id" "$workflow" "$round_num" "$include_impl" "$requested_slug")"
+
+    if ! apr_lib_queue_with_lock "$lock_file" apr_lib_queue_append "$events_file" "$event_json"; then
+        apr_queue_fail "busy" \
+            "Could not append queue entry" \
+            "Retry after the active queue writer finishes." \
+            "$(jq -nc --arg workflow "$workflow" --arg lock_file "$lock_file" '{workflow:$workflow,lock_file:$lock_file}')"
+        return $?
+    fi
+
+    data=$(jq -nc \
+        --arg entry_id "$entry_id" \
+        --arg workflow "$workflow" \
+        --argjson round "$round_num" \
+        --argjson include_impl "$( [[ "$include_impl" == "true" ]] && echo true || echo false )" \
+        --arg requested_slug "$requested_slug" \
+        --arg events_file "$events_file" \
+        '{entry_id:$entry_id, workflow:$workflow, round:$round, include_impl:$include_impl, requested_slug:(if $requested_slug == "" then null else $requested_slug end), events_file:$events_file}')
+
+    if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+        robot_json true "ok" "$data"
+    elif [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$data"
+    else
+        print_success "Queued round $round_num for workflow '$workflow'"
+        print_info "Queue entry: $entry_id"
+    fi
+}
+
+_apr_queue_cancel_locked() {
+    local events_file="${1:?events_file required}"
+    local entry_id="${2:?entry_id required}"
+    local workflow="${3:?workflow required}"
+    local reason="${4:-operator}"
+    local state status event_json
+
+    state="$(apr_lib_queue_derive "$events_file" "$entry_id" 2>/dev/null || true)"
+    status="$(printf '%s' "$state" | jq -r '.status // "unknown"')"
+    if [[ "$status" == "unknown" ]]; then
+        return 44
+    fi
+
+    event_json="$(apr_queue_cancel_event_json "$entry_id" "$workflow" "$reason")"
+    apr_lib_queue_append "$events_file" "$event_json"
+}
+
+cmd_queue_cancel() {
+    local workflow="$1"
+    local entry_id="$2"
+    local reason="$3"
+    local json_output="$4"
+
+    apr_queue_validate_workflow "$workflow" || return $?
+    if [[ -z "$entry_id" ]]; then
+        apr_queue_fail "usage_error" \
+            "Queue entry id required" \
+            "Usage: apr queue cancel <entry-id>" \
+            '{"argument":"entry_id"}'
+        return $?
+    fi
+
+    local paths events_file lock_file rc state data
+    mapfile -t paths < <(apr_queue_paths_for "$workflow")
+    events_file="${paths[0]}"
+    lock_file="${paths[1]}"
+
+    rc=0
+    apr_lib_queue_with_lock "$lock_file" _apr_queue_cancel_locked "$events_file" "$entry_id" "$workflow" "$reason" || rc=$?
+    if [[ $rc -eq 44 ]]; then
+        apr_queue_fail "validation_failed" \
+            "Queue entry not found: $entry_id" \
+            "Run 'apr queue status' to inspect active entries." \
+            "$(jq -nc --arg entry_id "$entry_id" '{entry_id:$entry_id}')"
+        return $?
+    elif [[ $rc -ne 0 ]]; then
+        apr_queue_fail "busy" \
+            "Could not cancel queue entry" \
+            "Retry after the active queue writer finishes." \
+            "$(jq -nc --arg entry_id "$entry_id" --arg lock_file "$lock_file" '{entry_id:$entry_id,lock_file:$lock_file}')"
+        return $?
+    fi
+
+    state="$(apr_lib_queue_derive "$events_file" "$entry_id")"
+    data="$(jq -nc --argjson entry "$state" '{entry:$entry}')"
+    if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+        robot_json true "ok" "$data"
+    elif [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$data"
+    else
+        print_success "Canceled queue entry $entry_id"
+    fi
+}
+
+cmd_queue_status() {
+    local workflow="$1"
+    local limit="$2"
+    local json_output="$3"
+
+    apr_queue_validate_workflow "$workflow" || return $?
+    if [[ -z "$limit" || ! "$limit" =~ ^[0-9]+$ ]]; then
+        apr_queue_fail "usage_error" \
+            "Status limit must be a non-negative integer" \
+            "Usage: apr queue status --limit <n>" \
+            "$(jq -nc --arg limit "$limit" '{argument:"limit",value:$limit}')"
+        return $?
+    fi
+
+    local paths events_file state_json
+    mapfile -t paths < <(apr_queue_paths_for "$workflow")
+    events_file="${paths[0]}"
+    state_json="$(apr_queue_state_json "$events_file" "$workflow" "$limit")"
+
+    if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+        robot_json true "ok" "$state_json"
+    elif [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$state_json"
+    else
+        apr_queue_print_human_status "$state_json"
+    fi
+}
+
+_apr_queue_run_entry_command() {
+    local script_path="${APR_QUEUE_SCRIPT_PATH:-$0}"
+    local -a args=(run "$APR_QUEUE_ROUND" -w "$APR_QUEUE_WORKFLOW" --wait)
+    if [[ "${APR_QUEUE_INCLUDE_IMPL:-false}" == "true" ]]; then
+        args+=(--include-impl)
+    fi
+    "$script_path" "${args[@]}" >/dev/null
+}
+
+cmd_queue_run() {
+    local workflow="$1"
+    local once="$2"
+    local max_entries="$3"
+    local json_output="$4"
+
+    apr_queue_validate_workflow "$workflow" || return $?
+    if [[ -n "$max_entries" && ! "$max_entries" =~ ^[0-9]+$ ]]; then
+        apr_queue_fail "usage_error" \
+            "Max entries must be a non-negative integer" \
+            "Usage: apr queue run --max <n>" \
+            "$(jq -nc --arg max "$max_entries" '{argument:"max",value:$max}')"
+        return $?
+    fi
+
+    local paths events_file lock_file runner_id script_path processed failures empty rc result last_result data
+    mapfile -t paths < <(apr_queue_paths_for "$workflow")
+    events_file="${paths[0]}"
+    lock_file="${paths[1]}"
+    runner_id="apr-queue-${HOSTNAME:-localhost}-$$"
+    script_path="${BASH_SOURCE[0]}"
+    if [[ "$script_path" == */* ]]; then
+        script_path="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd)/$(basename "$script_path")"
+    fi
+    processed=0
+    failures=0
+    empty=false
+    last_result='{}'
+
+    while true; do
+        rc=0
+        result="$(APR_QUEUE_SCRIPT_PATH="$script_path" apr_lib_queue_run_once "$events_file" "$lock_file" "$runner_id" _apr_queue_run_entry_command)" || rc=$?
+        if [[ $rc -eq 2 ]]; then
+            empty=true
+            last_result="$result"
+            break
+        fi
+
+        processed=$((processed + 1))
+        last_result="$result"
+        if [[ $rc -ne 0 ]]; then
+            failures=$((failures + 1))
+            break
+        fi
+
+        [[ "$once" == "true" ]] && break
+        if [[ -n "$max_entries" && "$processed" -ge "$max_entries" ]]; then
+            break
+        fi
+    done
+
+    data="$(jq -nc \
+        --arg workflow "$workflow" \
+        --arg runner_id "$runner_id" \
+        --argjson processed "$processed" \
+        --argjson failures "$failures" \
+        --argjson empty "$empty" \
+        --argjson last_result "$last_result" \
+        '{workflow:$workflow, runner_id:$runner_id, processed:$processed, failures:$failures, empty:$empty, last_result:$last_result}')"
+
+    if [[ $failures -gt 0 ]]; then
+        if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+            robot_fail "internal_error" "$data" "Queued run failed"
+        else
+            apr_fail "internal_error" "Queued run failed" "Inspect 'apr queue status' and the APR run output above."
+        fi
+        return $?
+    fi
+
+    if [[ "${ROBOT_MODE:-false}" == "true" ]]; then
+        robot_json true "ok" "$data"
+    elif [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$data"
+    else
+        if [[ "$processed" -eq 0 ]]; then
+            print_info "Queue is empty for workflow '$workflow'"
+        else
+            print_success "Processed $processed queue entr$( [[ "$processed" -eq 1 ]] && printf 'y' || printf 'ies' ) for workflow '$workflow'"
+        fi
+    fi
+}
+
+cmd_queue() {
+    local subcommand="${1:-status}"
+    if [[ "$subcommand" == -* ]]; then
+        subcommand="status"
+    else
+        [[ $# -gt 0 ]] && shift
+    fi
+
+    local workflow=""
+    local include_impl=false
+    local json_output="${STATS_JSON:-false}"
+    local requested_slug=""
+    local reason="operator"
+    local once=false
+    local max_entries=""
+    local limit=10
+    local args=()
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -w|--workflow)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    apr_queue_fail "usage_error" "Option --workflow requires a value" "Usage: apr queue <cmd> --workflow <name>" '{"option":"--workflow"}'
+                    return $?
+                fi
+                workflow="$2"
+                shift 2
+                ;;
+            --workflow=*)
+                workflow="${1#*=}"
+                shift
+                ;;
+            -i|--include-impl)
+                include_impl=true
+                shift
+                ;;
+            --slug)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    apr_queue_fail "usage_error" "Option --slug requires a value" "Usage: apr queue add <round> --slug <slug>" '{"option":"--slug"}'
+                    return $?
+                fi
+                requested_slug="$2"
+                shift 2
+                ;;
+            --slug=*)
+                requested_slug="${1#*=}"
+                shift
+                ;;
+            --reason)
+                if [[ -z "${2:-}" ]]; then
+                    apr_queue_fail "usage_error" "Option --reason requires a value" "Usage: apr queue cancel <id> --reason <text>" '{"option":"--reason"}'
+                    return $?
+                fi
+                reason="$2"
+                shift 2
+                ;;
+            --reason=*)
+                reason="${1#*=}"
+                shift
+                ;;
+            --once)
+                once=true
+                shift
+                ;;
+            --until-empty)
+                once=false
+                shift
+                ;;
+            --max)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    apr_queue_fail "usage_error" "Option --max requires a value" "Usage: apr queue run --max <n>" '{"option":"--max"}'
+                    return $?
+                fi
+                max_entries="$2"
+                shift 2
+                ;;
+            --max=*)
+                max_entries="${1#*=}"
+                shift
+                ;;
+            --limit)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    apr_queue_fail "usage_error" "Option --limit requires a value" "Usage: apr queue status --limit <n>" '{"option":"--limit"}'
+                    return $?
+                fi
+                limit="$2"
+                shift 2
+                ;;
+            --limit=*)
+                limit="${1#*=}"
+                shift
+                ;;
+            --json)
+                json_output=true
+                shift
+                ;;
+            --help|-h)
+                cmd_queue_help
+                return 0
+                ;;
+            -*)
+                apr_queue_fail "usage_error" "Unknown queue option: $1" "Run 'apr queue --help' for valid options." "$(jq -nc --arg option "$1" '{option:$option}')"
+                return $?
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    apr_queue_require_runtime || return $?
+    workflow="$(apr_queue_default_workflow "$workflow")"
+
+    case "$subcommand" in
+        add)
+            cmd_queue_add "$workflow" "${args[0]:-}" "$include_impl" "$requested_slug" "$json_output"
+            ;;
+        status)
+            cmd_queue_status "$workflow" "$limit" "$json_output"
+            ;;
+        cancel)
+            cmd_queue_cancel "$workflow" "${args[0]:-}" "$reason" "$json_output"
+            ;;
+        run)
+            cmd_queue_run "$workflow" "$once" "$max_entries" "$json_output"
+            ;;
+        help)
+            cmd_queue_help
+            ;;
+        *)
+            apr_queue_fail "usage_error" \
+                "Unknown queue subcommand: $subcommand" \
+                "Usage: apr queue add|status|cancel|run" \
+                "$(jq -nc --arg command "$subcommand" '{command:$command}')"
+            ;;
+    esac
+}
+
 cmd_providers() {
     local subcommand="${1:-}"
     [[ -n "$subcommand" ]] && shift
@@ -4538,19 +5231,21 @@ run_round() {
         echo "" >&2
     fi
 
+    local run_log="${output_file}.log"
+    local oracle_exit=0
     if [[ "$wait_mode" == "true" ]]; then
         print_info "Running in foreground (--wait)..."
         [[ "$enable_retry" == "true" ]] && print_dim "Auto-retry enabled (up to $MAX_RETRY_ATTEMPTS attempts)"
         print_dim "Elapsed time will be shown on completion."
         echo "" >&2
-        local start_time oracle_exit=0
+        local start_time
         start_time=$(date +%s)
 
-        # Use auto-retry wrapper if enabled
+        # Use auto-retry wrapper if enabled. Capture output for files-report (bd-1tl).
         if [[ "$enable_retry" == "true" ]]; then
-            run_oracle_with_retry "${oracle_args[@]}" || oracle_exit=$?
+            run_oracle_with_retry "${oracle_args[@]}" 2>&1 | tee "$run_log" || oracle_exit=$?
         else
-            "${ORACLE_CMD[@]}" "${oracle_args[@]}" || oracle_exit=$?
+            "${ORACLE_CMD[@]}" "${oracle_args[@]}" 2>&1 | tee "$run_log" || oracle_exit=$?
         fi
 
         local end_time elapsed_secs elapsed_fmt
@@ -4750,7 +5445,25 @@ run_round() {
             ledger_finished_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             if [[ $oracle_exit -eq 0 ]]; then code="ok"; else code="oracle_error"; fi
             
+            # Verify files-report (bd-1tl)
+            local verify_res trust_json files_report_json
+            verify_res=$(python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/verify-files-report.py" \
+                --expected-files "$files_json" \
+                --oracle-output "$run_log" \
+                --json)
+            
+            trust_json=$(printf '%s' "$verify_res" | jq -c '.data.trust')
+            files_report_json=$(printf '%s' "$verify_res" | jq -c '.data.files_report')
+            
+            # Surface mismatch in human mode
+            if [[ "$(printf '%s' "$trust_json" | jq -r '.files_report_ok')" == "false" ]]; then
+                print_warning "Oracle reported attachment mismatch. Round trust may be low."
+                print_dim "Check $run_log for details."
+            fi
+
             local ledger_finished_doc
+            export APR_LEDGER_TRUST_JSON="$trust_json"
+            export APR_LEDGER_FILES_REPORT_JSON="$files_report_json"
             ledger_finished_doc=$(apr_lib_ledger_build_finished "$workflow" "$round_num" "$slug" "$run_id" \
                 "$ledger_started_at" "$ledger_finished_at" "finished" \
                 "$files_json" "$prompt_hash" "browser" "$model" \
@@ -7786,6 +8499,7 @@ robot_help() {
             validate: "Pre-run validation (apr robot validate <round>)",
             run: "Execute revision round (apr robot run <round>)",
             render: "Preview manifest + prompt for a round without invoking Oracle (apr robot render <round>; --manifest-only for manifest alone)",
+            queue: "Manage persistent queue entries (add/status/cancel/run)",
             show: "View round content (apr robot show <round>)",
             diff: "Compare rounds (apr robot diff <N> [M])",
             integrate: "Get Claude integration prompt (apr robot integrate <round>)",
@@ -7799,6 +8513,7 @@ robot_help() {
             "--round N": "Round context for lint warnings",
             "--no-lint": "Bypass run lint gate (explicit and noisy)",
             "--fail-on-warn": "Treat lint warnings as errors (strict mode; same as APR_FAIL_ON_WARN=1)",
+            "queue --once|--until-empty|--max N|--slug S": "Queue command-local options",
             "-f, --format FORMAT": "Robot output format: json or toon (env: APR_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)",
             "--stats": "Show token savings statistics (JSON vs TOON byte comparison)",
             "--compact": "Minified JSON output"
@@ -7827,6 +8542,9 @@ robot_help() {
             "apr robot lint --round 1 -w myspec",
             "apr robot validate 1 -w myspec",
             "apr robot run 1",
+            "apr robot queue add 2 -w myspec",
+            "apr robot queue status -w myspec",
+            "apr robot queue run --once -w myspec",
             "apr robot show 3 -w myspec",
             "apr robot diff 3 -w myspec",
             "apr robot diff 3 2 -w myspec",
@@ -7927,6 +8645,11 @@ cmd_robot() {
             *)
                 if [[ -z "$robot_cmd" ]]; then
                     robot_cmd="$1"
+                    if [[ "$robot_cmd" == "queue" ]]; then
+                        shift
+                        robot_args=("$@")
+                        break
+                    fi
                 else
                     robot_args+=("$1")
                 fi
@@ -7963,6 +8686,9 @@ cmd_robot() {
             ;;
         run)
             robot_run "${robot_args[0]:-}"
+            ;;
+        queue)
+            cmd_queue "${robot_args[@]}"
             ;;
         render)
             robot_render "${robot_args[0]:-}"
@@ -8018,6 +8744,7 @@ show_help() {
         echo "    $(gum style --foreground 82 'doctor')             Validate system readiness and artifacts" >&2
         echo "    $(gum style --foreground 82 'prompts <cmd>')      v18 prompt compilation and linting" >&2
         echo "    $(gum style --foreground 82 'lint [round]')       Validate workflow/docs/templates" >&2
+        echo "    $(gum style --foreground 82 'queue <cmd>')        Queue rounds for serialized execution" >&2
         echo "    $(gum style --foreground 82 'setup')              Interactive workflow setup wizard" >&2
         echo "    $(gum style --foreground 82 'status')             Check Oracle session status" >&2
         echo "    $(gum style --foreground 82 'attach <session>')   Attach to running/completed session" >&2
@@ -8148,6 +8875,7 @@ show_help() {
         echo -e "    ${GREEN}doctor${NC}             Validate system readiness and artifacts" >&2
         echo -e "    ${GREEN}prompts <cmd>${NC}      v18 prompt compilation and linting" >&2
         echo -e "    ${GREEN}lint [round]${NC}       Validate workflow/docs/templates" >&2
+        echo -e "    ${GREEN}queue <cmd>${NC}        Queue rounds for serialized execution" >&2
         echo -e "    ${GREEN}setup${NC}              Interactive workflow setup wizard" >&2
         echo -e "    ${GREEN}status${NC}             Check Oracle session status" >&2
         echo -e "    ${GREEN}attach <session>${NC}   Attach to running/completed session" >&2
@@ -8329,6 +9057,11 @@ main() {
             WORKFLOW="default"
         fi
         cmd_robot "$@"
+        exit $?
+    fi
+
+    if [[ "$command" == "queue" ]]; then
+        cmd_queue "$@"
         exit $?
     fi
 
