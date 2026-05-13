@@ -1,0 +1,27 @@
+{
+  "bundle_version": "v18.0.0",
+  "entries": [
+    {
+      "artifact_id": "provider-result-demo-chatgpt_pro_first_plan",
+      "duration_ms": 1234,
+      "exit_code": 0,
+      "redacted_field_count": 2,
+      "stage": "first_plan"
+    },
+    {
+      "artifact_id": "plan-demo",
+      "duration_ms": 321,
+      "exit_code": 0,
+      "redacted_field_count": 0,
+      "stage": "normalize"
+    }
+  ],
+  "redaction_summary": {
+    "browser_cookies": 0,
+    "oauth_tokens": 0,
+    "raw_hidden_reasoning": 0,
+    "secret_material": 0
+  },
+  "run_id": "run-demo",
+  "schema_version": "log_bundle.v1"
+}

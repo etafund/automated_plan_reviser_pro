@@ -1,57 +1,249 @@
 {
   "artifacts": [
     {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/evidence-demo-chatgpt_pro_first_plan.json.tmp",
+        "via_temp_rename": true
+      },
       "artifact_id": "evidence-demo-chatgpt_pro_first_plan",
+      "canonical_json": true,
       "kind": "browser_evidence",
       "path": "fixtures/chatgpt-pro-evidence.json",
       "provider_result_ids": [
         "provider-result-demo-chatgpt_pro_first_plan"
       ],
+      "redacted_field_count": 3,
       "redaction_level": "redacted",
       "sha256": "sha256:bafa56a83021e180b7ad21b57c9dcf83b10ff536549eaf9b41fe901833e5effb",
-      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
     },
     {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/provider-result-demo-chatgpt_pro_first_plan.json.tmp",
+        "via_temp_rename": true
+      },
       "artifact_id": "provider-result-demo-chatgpt_pro_first_plan",
+      "canonical_json": true,
       "kind": "provider_result",
       "path": "fixtures/provider-result.chatgpt.json",
       "provider_result_ids": [
         "provider-result-demo-chatgpt_pro_first_plan"
       ],
+      "redacted_field_count": 0,
       "redaction_level": "none",
       "sha256": "sha256:5f1331f1971adcc73a90602a68e93551f4163e4165538cdce30ee11e5ecc73ae",
-      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
     },
     {
       "approval_ids": [
         "APR-DECISION-001"
       ],
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/plan-demo.json.tmp",
+        "via_temp_rename": true
+      },
       "artifact_id": "plan-demo",
+      "canonical_json": true,
       "kind": "plan_artifact",
       "path": "fixtures/plan-artifact.json",
       "provider_result_ids": [
         "provider-result-demo-chatgpt_pro_first_plan",
         "provider-result-demo-gemini_deep_think"
       ],
+      "redacted_field_count": 0,
       "redaction_level": "none",
       "sha256": "sha256:afdeeb5b6f769584421fd6cfcad3bd08794974834c8432a3fda5d7d067cf5ca9",
-      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
     },
     {
       "approval_ids": [
         "APR-DECISION-001"
       ],
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/approval-ledger-demo.json.tmp",
+        "via_temp_rename": true
+      },
       "artifact_id": "approval-ledger-demo",
+      "canonical_json": true,
       "kind": "approval_ledger",
       "path": "fixtures/approval-ledger.json",
       "provider_result_ids": [],
+      "redacted_field_count": 0,
       "redaction_level": "none",
       "sha256": "sha256:63067653d34239b2278ca26755c3b531eac154025e627a14e50141ef77111497",
-      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/provider-request-demo-balanced.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "provider-request-demo-balanced",
+      "canonical_json": true,
+      "kind": "provider_request",
+      "path": "fixtures/provider-route.balanced.json",
+      "provider_result_ids": [],
+      "redacted_field_count": 0,
+      "redaction_level": "none",
+      "sha256": "sha256:48c24330ac2f2a31c2064a10d14c6222a02b43f94aabef901ff9ac2cf44c43cc",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/normalized-plan-demo.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "normalized-plan-demo",
+      "canonical_json": true,
+      "kind": "normalized_plan",
+      "path": "fixtures/plan-artifact.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "redacted_field_count": 0,
+      "redaction_level": "none",
+      "sha256": "sha256:afdeeb5b6f769584421fd6cfcad3bd08794974834c8432a3fda5d7d067cf5ca9",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/synthesis-output-demo.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "synthesis-output-demo",
+      "canonical_json": true,
+      "kind": "synthesis_output",
+      "path": "fixtures/provider-result.chatgpt-synthesis.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_synthesis"
+      ],
+      "redacted_field_count": 0,
+      "redaction_level": "none",
+      "sha256": "sha256:7253d9c111a9bbfb1fc2688091a1f4264cba93c51bdf6b2efca6fe0f49f3c2d2",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/traceability-demo.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "traceability-demo",
+      "canonical_json": true,
+      "kind": "traceability",
+      "path": "fixtures/traceability.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "redacted_field_count": 0,
+      "redaction_level": "none",
+      "sha256": "sha256:ab996251bb7c00f8971e26aa1cbb011fd92a595f2c77c1a6f9b9e37ddf0f6a75",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "approval_ids": [
+        "APR-WAIVER-001"
+      ],
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/fallback-waiver-demo.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "fallback-waiver-demo",
+      "canonical_json": true,
+      "kind": "fallback_waiver",
+      "path": "fixtures/fallback-waiver.json",
+      "provider_result_ids": [],
+      "redacted_field_count": 0,
+      "redaction_level": "none",
+      "sha256": "sha256:c201786c154e76f029d272ce7e82c4f8fece8f72663b47001d7a66cd3f3f3567",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
+    },
+    {
+      "atomic_write": {
+        "index_update_id": "index-update-demo-001",
+        "lock_id": "lock-run-demo-planning",
+        "rename_result": "committed",
+        "temp_path": "runs/planning/run-demo/.tmp/log-bundle-demo.json.tmp",
+        "via_temp_rename": true
+      },
+      "artifact_id": "log-bundle-demo",
+      "canonical_json": true,
+      "kind": "log_bundle",
+      "path": "fixtures/log-bundle.json",
+      "provider_result_ids": [],
+      "redacted_field_count": 4,
+      "redaction_level": "redacted",
+      "sha256": "sha256:90f89dbbf5c755c299f5044eb3b2220db3366f8b2a1fbb23d7824a3fd3dff71d",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "write_state": "committed"
     }
   ],
   "bundle_version": "v18.0.0",
+  "redaction_boundary": {
+    "forbidden_persisted_fields": [
+      "api_keys",
+      "browser_cookies",
+      "oauth_tokens",
+      "raw_hidden_reasoning",
+      "reasoning_content",
+      "unredacted_dom",
+      "unredacted_screenshot"
+    ],
+    "private_browser_material_persisted": false,
+    "raw_hidden_reasoning_persisted": false,
+    "secret_material_persisted": false
+  },
   "run_id": "run-demo",
+  "run_lock": {
+    "lock_id": "lock-run-demo-planning",
+    "mode": "exclusive_write_shared_read",
+    "path": "runs/planning/run-demo/.lock",
+    "stale_after_seconds": 900,
+    "status_reads_allowed": true
+  },
   "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
-  "schema_version": "artifact_index.v1"
+  "schema_version": "artifact_index.v1",
+  "write_policy": {
+    "atomic_write_required": true,
+    "fsync_parent_dir_recommended": true,
+    "rename_required": true,
+    "status_reads_must_tolerate_partial_writes": true,
+    "temp_path_pattern": "<artifact-path>.tmp.<pid>"
+  }
 }
