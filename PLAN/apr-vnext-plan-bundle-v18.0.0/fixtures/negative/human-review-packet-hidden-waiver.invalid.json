@@ -1,0 +1,115 @@
+{
+  "approval_records": [
+    {
+      "approval_id": "APR-DECISION-001",
+      "decision": "approved",
+      "subject_id": "PLAN-ROUTE-GATING"
+    }
+  ],
+  "bead_export_preview": {
+    "beads": [
+      {
+        "bead_id": "v18-route-readiness-gate",
+        "plan_item_ids": [
+          "PLAN-ROUTE-GATING"
+        ],
+        "test_ids": [
+          "TEST-ROUTE-READINESS-CONTRACT"
+        ],
+        "title": "Implement route readiness and synthesis handoff gates"
+      }
+    ],
+    "ready": true
+  },
+  "bundle_version": "v18.0.0",
+  "conformance_coverage": {
+    "must_clauses": 9,
+    "must_score": 0.9,
+    "passing": 9,
+    "should_clauses": 1,
+    "tested": 10
+  },
+  "executive_summary": {
+    "degradation_label": "none",
+    "implementation_handoff_eligible": true,
+    "text": "This packet incorrectly hides a fallback waiver.",
+    "unresolved_question_count": 0
+  },
+  "generated_at": "2026-05-13T04:20:00Z",
+  "high_risk_decisions": [
+    {
+      "approval_id": "APR-DECISION-001",
+      "decision_id": "DECISION-SPLIT-SYNTHESIS-HANDOFF-GATES",
+      "evidence_ids": [
+        "evidence-demo-chatgpt_pro_first_plan"
+      ],
+      "rationale": "Synthesis evidence gates final handoff.",
+      "risk_ids": [
+        "risk-browser-ui-drift"
+      ],
+      "title": "Split synthesis gates"
+    }
+  ],
+  "implementation_sequence": [
+    {
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "rollback_point_ids": [
+        "RB-ROUTE-GATING"
+      ],
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
+      "step_id": "STEP-ROUTE-GATING-001",
+      "test_ids": [
+        "TEST-ROUTE-READINESS-CONTRACT"
+      ],
+      "title": "Wire route readiness"
+    }
+  ],
+  "packet_id": "human-review-hidden-waiver",
+  "packet_path": "fixtures/human-review-packet.md",
+  "rollback_points": [
+    {
+      "rollback_point_id": "RB-ROUTE-GATING",
+      "verification_command": "apr providers readiness --json"
+    }
+  ],
+  "run_id": "run-demo",
+  "schema_version": "human_review_packet.v1",
+  "source_artifact_ids": {
+    "approval_ledger_id": "approval-ledger-demo",
+    "artifact_index_id": "artifact-index-demo",
+    "failure_mode_ledger_id": "failure-mode-ledger-demo",
+    "final_plan_artifact_id": "plan-demo",
+    "provider_result_ids": [
+      "provider-result-demo-chatgpt_pro_first_plan"
+    ],
+    "traceability_id": "traceability-demo",
+    "waiver_ids": [
+      "fallback-waiver-demo"
+    ]
+  },
+  "test_plan": [
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "expected": "route readiness validates",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "test_id": "TEST-ROUTE-READINESS-CONTRACT"
+    }
+  ],
+  "traceability_summary": {
+    "contradiction_resolutions": 1,
+    "final_plan_items": 1,
+    "requirements": 1,
+    "tests": 1
+  },
+  "unresolved_questions": [],
+  "waivers_and_degradations": []
+}

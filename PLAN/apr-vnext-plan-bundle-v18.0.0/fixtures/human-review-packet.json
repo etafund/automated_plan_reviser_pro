@@ -1,0 +1,149 @@
+{
+  "approval_records": [
+    {
+      "approval_id": "APR-DECISION-001",
+      "decision": "approved",
+      "rationale": "The route readiness plan item is supported by source baseline, provider outputs, browser evidence, and a resolved reviewer contradiction.",
+      "subject_id": "PLAN-ROUTE-GATING"
+    }
+  ],
+  "bead_export_preview": {
+    "beads": [
+      {
+        "bead_id": "v18-route-readiness-gate",
+        "depends_on": [
+          "v18-provider-evidence"
+        ],
+        "plan_item_ids": [
+          "PLAN-ROUTE-GATING"
+        ],
+        "priority": 1,
+        "test_ids": [
+          "TEST-ROUTE-READINESS-CONTRACT",
+          "TEST-PROVIDER-COMPARISON-CONTRACT"
+        ],
+        "title": "Implement route readiness and synthesis handoff gates"
+      }
+    ],
+    "ready": true
+  },
+  "bundle_version": "v18.0.0",
+  "conformance_coverage": {
+    "divergent": 0,
+    "must_clauses": 12,
+    "must_score": 1,
+    "passing": 13,
+    "should_clauses": 1,
+    "tested": 13
+  },
+  "executive_summary": {
+    "degradation_label": "waived",
+    "implementation_handoff_eligible": true,
+    "text": "APR v18 has a traceable final plan for route readiness and synthesis gates. The packet keeps provider evidence, reviewer deltas, waiver visibility, tests, rollback, and approvals together for implementation handoff.",
+    "unresolved_question_count": 1
+  },
+  "generated_at": "2026-05-13T04:20:00Z",
+  "high_risk_decisions": [
+    {
+      "approval_id": "APR-DECISION-001",
+      "decision_id": "DECISION-SPLIT-SYNTHESIS-HANDOFF-GATES",
+      "evidence_ids": [
+        "evidence-demo-chatgpt_pro_first_plan",
+        "evidence-demo-gemini_deep_think"
+      ],
+      "rationale": "Synthesis evidence is produced by the synthesis call, so it gates final handoff rather than synthesis prompt submission.",
+      "risk_ids": [
+        "risk-browser-ui-drift"
+      ],
+      "title": "Split synthesis prompt readiness from final handoff evidence"
+    }
+  ],
+  "implementation_sequence": [
+    {
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "rollback_point_ids": [
+        "RB-ROUTE-GATING"
+      ],
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
+      "step_id": "STEP-ROUTE-GATING-001",
+      "test_ids": [
+        "TEST-ROUTE-READINESS-CONTRACT",
+        "TEST-PROVIDER-COMPARISON-CONTRACT"
+      ],
+      "title": "Wire route readiness, provider evidence, and final handoff gate checks"
+    }
+  ],
+  "packet_id": "human-review-run-demo",
+  "packet_path": "fixtures/human-review-packet.md",
+  "rollback_points": [
+    {
+      "description": "Return to pre-synthesis route readiness if provider evidence, quorum, or waiver records diverge.",
+      "rollback_point_id": "RB-ROUTE-GATING",
+      "verification_command": "apr providers readiness --json"
+    }
+  ],
+  "run_id": "run-demo",
+  "schema_version": "human_review_packet.v1",
+  "source_artifact_ids": {
+    "approval_ledger_id": "approval-ledger-demo",
+    "artifact_index_id": "artifact-index-demo",
+    "failure_mode_ledger_id": "failure-mode-ledger-demo",
+    "final_plan_artifact_id": "plan-demo",
+    "provider_result_ids": [
+      "provider-result-demo-chatgpt_pro_first_plan"
+    ],
+    "traceability_id": "traceability-demo",
+    "waiver_ids": [
+      "fallback-waiver-demo"
+    ]
+  },
+  "test_plan": [
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "expected": "route readiness fixture validates and synthesis gates are non-circular",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "test_id": "TEST-ROUTE-READINESS-CONTRACT"
+    },
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "expected": "provider comparison records include provider ids, contradiction ids, and traceability anchors",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "test_id": "TEST-PROVIDER-COMPARISON-CONTRACT"
+    }
+  ],
+  "traceability_summary": {
+    "contradiction_resolutions": 1,
+    "final_plan_items": 1,
+    "requirements": 1,
+    "tests": 2
+  },
+  "unresolved_questions": [
+    {
+      "owner": "implementation_agent",
+      "question": "Confirm the live Oracle selector manifest still exposes the required highest-visible reasoning controls before cutover.",
+      "question_id": "QUESTION-LIVE-SELECTOR-FRESHNESS",
+      "required_before": "live_cutover"
+    }
+  ],
+  "waivers_and_degradations": [
+    {
+      "approval_id": "APR-DECISION-001",
+      "label": "waived",
+      "must_surface_in_handoff": true,
+      "summary": "Fallback browser/manual-import conditions must remain visible in the handoff packet and cannot be treated as a clean run.",
+      "waiver_id": "fallback-waiver-demo"
+    }
+  ]
+}

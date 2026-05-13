@@ -1,0 +1,467 @@
+{
+  "$id": "https://example.invalid/vibe-planning/contracts/human-review-packet.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "$defs": {
+    "non_empty_string": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "string_array": {
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "type": "array"
+    }
+  },
+  "properties": {
+    "approval_records": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "approval_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "decision": {
+            "enum": [
+              "approved",
+              "deferred",
+              "rejected"
+            ]
+          },
+          "subject_id": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "decision",
+          "subject_id"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "bead_export_preview": {
+      "additionalProperties": true,
+      "properties": {
+        "beads": {
+          "items": {
+            "additionalProperties": true,
+            "properties": {
+              "bead_id": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "depends_on": {
+                "$ref": "#/$defs/string_array"
+              },
+              "plan_item_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "test_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "title": {
+                "$ref": "#/$defs/non_empty_string"
+              }
+            },
+            "required": [
+              "bead_id",
+              "plan_item_ids",
+              "test_ids",
+              "title"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ready",
+        "beads"
+      ],
+      "type": "object"
+    },
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "conformance_coverage": {
+      "additionalProperties": true,
+      "properties": {
+        "must_clauses": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "must_score": {
+          "minimum": 0.95,
+          "type": "number"
+        },
+        "passing": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "should_clauses": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tested": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "must_clauses",
+        "should_clauses",
+        "tested",
+        "passing",
+        "must_score"
+      ],
+      "type": "object"
+    },
+    "executive_summary": {
+      "additionalProperties": true,
+      "properties": {
+        "degradation_label": {
+          "enum": [
+            "none",
+            "degraded",
+            "waived",
+            "exploratory_only",
+            "blocked"
+          ]
+        },
+        "implementation_handoff_eligible": {
+          "type": "boolean"
+        },
+        "text": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "unresolved_question_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "implementation_handoff_eligible",
+        "degradation_label",
+        "unresolved_question_count"
+      ],
+      "type": "object"
+    },
+    "generated_at": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "high_risk_decisions": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "approval_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "decision_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "evidence_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "rationale": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "risk_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "title": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "decision_id",
+          "title",
+          "rationale",
+          "approval_id",
+          "evidence_ids",
+          "risk_ids"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "implementation_sequence": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "plan_item_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "provider_result_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "rollback_point_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "source_refs": {
+            "$ref": "#/$defs/string_array"
+          },
+          "step_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "test_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "title": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "step_id",
+          "title",
+          "plan_item_ids",
+          "provider_result_ids",
+          "source_refs",
+          "test_ids",
+          "rollback_point_ids"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "packet_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "packet_path": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "rollback_points": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "rollback_point_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "verification_command": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "rollback_point_id",
+          "verification_command"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "run_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "schema_version": {
+      "const": "human_review_packet.v1"
+    },
+    "source_artifact_ids": {
+      "additionalProperties": true,
+      "properties": {
+        "approval_ledger_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "artifact_index_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "failure_mode_ledger_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "final_plan_artifact_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "provider_result_ids": {
+          "$ref": "#/$defs/string_array"
+        },
+        "traceability_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "waiver_ids": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "required": [
+        "final_plan_artifact_id",
+        "artifact_index_id",
+        "traceability_id",
+        "approval_ledger_id",
+        "failure_mode_ledger_id",
+        "provider_result_ids",
+        "waiver_ids"
+      ],
+      "type": "object"
+    },
+    "test_plan": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "command": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "expected": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "plan_item_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "test_id": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "test_id",
+          "command",
+          "expected",
+          "plan_item_ids"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "traceability_summary": {
+      "additionalProperties": true,
+      "properties": {
+        "contradiction_resolutions": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "final_plan_items": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "requirements": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tests": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requirements",
+        "final_plan_items",
+        "tests",
+        "contradiction_resolutions"
+      ],
+      "type": "object"
+    },
+    "unresolved_questions": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "owner": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "question": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "question_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "required_before": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "question_id",
+          "question",
+          "owner",
+          "required_before"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "waivers_and_degradations": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "approval_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "label": {
+            "enum": [
+              "degraded",
+              "waived",
+              "exploratory_only",
+              "blocked"
+            ]
+          },
+          "must_surface_in_handoff": {
+            "const": true
+          },
+          "summary": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "waiver_id": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "required": [
+          "waiver_id",
+          "label",
+          "summary",
+          "must_surface_in_handoff"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "packet_id",
+    "run_id",
+    "generated_at",
+    "packet_path",
+    "source_artifact_ids",
+    "executive_summary",
+    "implementation_sequence",
+    "high_risk_decisions",
+    "waivers_and_degradations",
+    "unresolved_questions",
+    "test_plan",
+    "rollback_points",
+    "bead_export_preview",
+    "approval_records",
+    "traceability_summary",
+    "conformance_coverage"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source_artifact_ids": {
+            "properties": {
+              "waiver_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "waivers_and_degradations": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "title": "Human Review Packet",
+  "type": "object",
+  "x-bundle-version": "v18.0.0"
+}
