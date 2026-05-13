@@ -428,7 +428,30 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/queue.sh "$lib_dir"/template.sh "$lib_dir"/validate.sh "$lib_dir"/ledger.sh; do
+    # Order matters when libs source each other (e.g. validate.sh
+    # depends on manifest.sh). Each lib guards against double-sourcing
+    # so a redundant source line is cheap when a downstream lib already
+    # pulled the dep in.
+    #
+    # bd-4dxz: ack/busy_wait/cache/files_report/size/redact were
+    # previously orphan (unit-tested but never loaded at apr runtime).
+    # All six have their own load guards; loading them is safe and
+    # idempotent and matches the load discipline apr already uses.
+    for lib_file in \
+        "$lib_dir"/errors.sh \
+        "$lib_dir"/ui.sh \
+        "$lib_dir"/manifest.sh \
+        "$lib_dir"/cache.sh \
+        "$lib_dir"/size.sh \
+        "$lib_dir"/redact.sh \
+        "$lib_dir"/busy.sh \
+        "$lib_dir"/busy_wait.sh \
+        "$lib_dir"/queue.sh \
+        "$lib_dir"/template.sh \
+        "$lib_dir"/validate.sh \
+        "$lib_dir"/ack.sh \
+        "$lib_dir"/files_report.sh \
+        "$lib_dir"/ledger.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -455,6 +478,9 @@ if apr_color_enabled; then
 else
     RED='' GREEN='' YELLOW='' CYAN='' MAGENTA='' WHITE='' BOLD='' DIM='' NC=''
 fi
+# RED and WHITE are kept as part of the legacy color palette even when a
+# narrower UI helper path does not currently render them directly.
+: "${RED}${WHITE}"
 
 # Gum availability flag
 GUM_AVAILABLE=false
@@ -1611,104 +1637,37 @@ validate_output_file() {
 
 print_banner() {
     [[ "$QUIET_MODE" == "true" ]] && return
-
-    local layout="compact"
-    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
-
-    if [[ "$layout" == "compact" ]]; then
-        echo "" >&2
-        echo -e "  ${BOLD}${WHITE}APR${NC} ${DIM}v${VERSION}${NC}" >&2
-        echo -e "  ${DIM}Iterative AI-Powered Spec Refinement${NC}" >&2
-        echo "" >&2
-    elif [[ "$GUM_AVAILABLE" == "true" ]]; then
-        gum style \
-            --border double \
-            --border-foreground 212 \
-            --padding "0 2" \
-            --margin "1 0" \
-            --bold \
-            --foreground 212 \
-            "  Automated Plan Reviser Pro v${VERSION}" \
-            "  Iterative AI-Powered Spec Refinement" >&2
-    else
-        # Get terminal width, default to 60 if unavailable
-        local term_width
-        term_width=$(apr_term_width)
-        # Cap at 60 for aesthetics
-        (( term_width > 60 )) && term_width=60
-        # Minimum width for readability
-        (( term_width < 40 )) && term_width=40
-
-        # Generate border of appropriate width
-        local border="" rule_char
-        rule_char=$(apr_ui_symbol rule)
-        for ((i=0; i<term_width; i++)); do
-            border+="$rule_char"
-        done
-
-        echo "" >&2
-        echo -e "${BOLD}${MAGENTA}${border}${NC}" >&2
-        echo -e "  ${BOLD}${WHITE}Automated Plan Reviser Pro${NC} ${DIM}v${VERSION}${NC}" >&2
-        echo -e "  ${DIM}Iterative AI-Powered Spec Refinement${NC}" >&2
-        echo -e "${BOLD}${MAGENTA}${border}${NC}" >&2
-        echo "" >&2
-    fi
+    apr_ui_banner "$VERSION"
 }
 
 print_header() {
-    [[ "$QUIET_MODE" == "true" ]] && return
     local text="$1"
-    if [[ "$GUM_AVAILABLE" == "true" ]]; then
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
+    if [[ "$layout" == "compact" ]]; then
+        echo -e "${YELLOW}${text}${NC}" >&2
+    elif [[ "$GUM_AVAILABLE" == "true" ]]; then
         gum style --foreground 214 --bold "$text" >&2
     else
-        echo -e "${BOLD}${YELLOW}$text${NC}" >&2
+        echo -e "${BOLD}${YELLOW}${text}${NC}" >&2
     fi
 }
 
 print_success() {
-    [[ "$QUIET_MODE" == "true" ]] && return
-    local text="$1"
-    local symbol
-    symbol=$(apr_ui_symbol success)
-    if [[ "$GUM_AVAILABLE" == "true" ]]; then
-        gum style --foreground 82 "$symbol $text" >&2
-    else
-        echo -e "${GREEN}${symbol}${NC} $text" >&2
-    fi
+    apr_ui_success "$@"
 }
 
 print_error() {
-    local text="$1"
-    local symbol
-    symbol=$(apr_ui_symbol error)
-    if [[ "$GUM_AVAILABLE" == "true" ]]; then
-        gum style --foreground 196 "$symbol $text" >&2
-    else
-        echo -e "${RED}${symbol}${NC} $text" >&2
-    fi
+    apr_ui_error "$@"
 }
 
 print_warning() {
-    local text="$1"
-    local symbol
-    symbol=$(apr_ui_symbol warning)
-    if [[ "$GUM_AVAILABLE" == "true" ]]; then
-        gum style --foreground 214 "$symbol $text" >&2
-    else
-        echo -e "${YELLOW}${symbol}${NC} $text" >&2
-    fi
+    apr_ui_warn "$@"
 }
 
 print_info() {
-    [[ "$QUIET_MODE" == "true" ]] && return
-    local text="$1"
-    local symbol
-    symbol=$(apr_ui_symbol info)
-    if [[ "$GUM_AVAILABLE" == "true" ]]; then
-        gum style --foreground 39 "$symbol $text" >&2
-    else
-        echo -e "${CYAN}${symbol}${NC} $text" >&2
-    fi
+    apr_ui_info "$@"
 }
 
 print_dim() {
@@ -7378,7 +7337,7 @@ show_dashboard() {
                 dashboard_show_round_detail "$selected" "$workflow"
                 ;;
             help)
-                dashboard_show_help
+                dashboard_show_help "${positional_args[@]}"
                 ;;
             refresh)
                 ;;
@@ -8891,8 +8850,34 @@ cmd_robot() {
 # -----------------------------------------------------------------------------
 
 show_help() {
+    local detailed=false
+    if [[ "${1:-}" == "--detailed" || "${STATS_DETAILED:-false}" == "true" ]]; then
+        detailed=true
+        [[ "${1:-}" == "--detailed" ]] && shift
+    fi
+
     check_gum || true
     print_banner
+
+    local layout
+    layout=$(apr_layout_mode)
+
+    if [[ "$layout" == "compact" && "$detailed" != "true" ]]; then
+        echo -e "${BOLD}${YELLOW}SYNOPSIS${NC}" >&2
+        echo "  apr [command] [options]" >&2
+        echo "" >&2
+
+        echo -e "${BOLD}${YELLOW}COMMANDS${NC}" >&2
+        echo "  run <round>        history            doctor" >&2
+        echo "  setup              show <round>       prompts <cmd>" >&2
+        echo "  status             stats              providers <cmd>" >&2
+        echo "  attach <session>   dashboard          plan <cmd>" >&2
+        echo "  list               backfill           workflow <cmd>" >&2
+        echo "" >&2
+        echo "  (Run 'apr help --detailed' for full descriptions)" >&2
+        echo "" >&2
+        return 0
+    fi
 
     if [[ "$GUM_AVAILABLE" == "true" ]]; then
         gum style --foreground 214 --bold "DESCRIPTION" >&2
@@ -8985,34 +8970,16 @@ show_help() {
         gum style --faint "  APR_NO_UNICODE       Use ASCII status symbols and rules" >&2
         gum style --faint "  NO_COLOR             Disable colored output" >&2
         echo "" >&2
-
         gum style --foreground 214 --bold "EXAMPLES" >&2
-        gum style --foreground 39 "  # First-time setup" >&2
-        echo "  apr setup" >&2
+        gum style --foreground 39 "  # Core Workflow" >&2
+        echo "    apr run 1                    # Run revision round 1" >&2
+        echo "    apr lint --round 1           # Validate round inputs" >&2
+        echo "    apr run 2 --include-impl     # Include implementation doc" >&2
         echo "" >&2
-        gum style --foreground 39 "  # Run revision round 1" >&2
-        echo "  apr run 1" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Validate before running" >&2
-        echo "  apr lint --round 1" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Run with implementation doc" >&2
-        echo "  apr run 2 --include-impl" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # First run with manual login" >&2
-        echo "  apr run 1 --login --wait" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Compare round outputs" >&2
-        echo "  apr diff 3 5" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Generate Claude Code integration prompt" >&2
-        echo "  apr integrate 5 --copy" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Check session status" >&2
-        echo "  apr status" >&2
-        echo "" >&2
-        gum style --foreground 39 "  # Robot mode (for coding agents)" >&2
-        echo "  apr robot status" >&2
+        gum style --foreground 39 "  # Analysis & Tracking" >&2
+        echo "    apr stats                    # View convergence signals" >&2
+        echo "    apr diff 3 5                 # Compare outputs" >&2
+        echo "    apr status                   # Check Oracle sessions" >&2
         echo "" >&2
 
         gum style --foreground 214 --bold "EXIT CODES" >&2
@@ -9116,17 +9083,19 @@ show_help() {
         echo "  NO_COLOR             Disable colored output" >&2
         echo "" >&2
         echo -e "${BOLD}${YELLOW}EXAMPLES${NC}" >&2
-        echo "  apr setup                    # First-time setup" >&2
-        echo "  apr lint --round 1           # Validate before running" >&2
-        echo "  apr run 1                    # Run revision round 1" >&2
-        echo "  apr run 2 --include-impl     # Include implementation doc" >&2
-        echo "  apr run 1 --login --wait     # First run with manual login" >&2
-        echo "  apr diff 3 5                 # Compare round outputs" >&2
-        echo "  apr integrate 5 --copy       # Generate integration prompt" >&2
-        echo "  apr status                   # Check session status" >&2
-        echo "  apr robot status             # Robot mode (for agents)" >&2
+        echo -e "  ${CYAN}# Core Workflow${NC}" >&2
+        echo -e "    ${GREEN}apr run 1${NC}                    # Run revision round 1" >&2
+        echo -e "    ${GREEN}apr lint --round 1${NC}           # Validate round inputs" >&2
+        echo -e "    ${GREEN}apr run 2 --include-impl${NC}     # Include implementation doc" >&2
         echo "" >&2
+        echo -e "  ${CYAN}# Analysis & Tracking${NC}" >&2
+        echo -e "    ${GREEN}apr stats${NC}                    # View convergence signals" >&2
+        echo -e "    ${GREEN}apr diff 3 5${NC}                 # Compare outputs" >&2
+        echo -e "    ${GREEN}apr status${NC}                   # Check Oracle sessions" >&2
+        echo "" >&2
+
         echo -e "${BOLD}${YELLOW}EXIT CODES${NC}" >&2
+
         echo "  0   Success" >&2
         echo "  1   Partial failure" >&2
         echo "  2   Usage error (bad arguments)" >&2
@@ -9166,7 +9135,7 @@ main() {
                 exit $EXIT_SUCCESS
                 ;;
             --help|-h)
-                show_help
+                show_help "${positional_args[@]}"
                 exit $EXIT_SUCCESS
                 ;;
             --compact)
@@ -9468,7 +9437,7 @@ main() {
                 exit $EXIT_SUCCESS
                 ;;
             --help|-h)
-                show_help
+                show_help "${positional_args[@]}"
                 exit $EXIT_SUCCESS
                 ;;
             -*)
@@ -9611,7 +9580,7 @@ main() {
             cmd_update
             ;;
         help|--help|-h)
-            show_help
+            show_help "${positional_args[@]}"
             ;;
         *)
             # If command looks like a number, treat as round number
