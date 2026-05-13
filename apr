@@ -6886,6 +6886,7 @@ robot_help() {
             "-i, --include-impl": "Include implementation document",
             "--round N": "Round context for lint warnings",
             "--no-lint": "Bypass run lint gate (explicit and noisy)",
+            "--fail-on-warn": "Treat lint warnings as errors (strict mode; same as APR_FAIL_ON_WARN=1)",
             "-f, --format FORMAT": "Robot output format: json or toon (env: APR_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)",
             "--stats": "Show token savings statistics (JSON vs TOON byte comparison)",
             "--compact": "Minified JSON output"
@@ -7136,6 +7137,7 @@ show_help() {
         gum style --faint "  --login              Manual login mode (first-time setup)" >&2
         gum style --faint "  --keep-browser       Keep browser open after completion" >&2
         gum style --faint "  --no-lint           Bypass run lint gate (not recommended)" >&2
+        gum style --faint "  --fail-on-warn       Treat lint warnings as errors (strict mode)" >&2
         gum style --faint "  --no-preflight       Skip pre-flight validation checks" >&2
         gum style --faint "  --retry/--no-retry   Enable/disable auto-retry (default: enabled)" >&2
         gum style --faint "  --hours NUM          Status window in hours (default: 72)" >&2
@@ -7259,6 +7261,7 @@ show_help() {
         echo "  --login              Manual login mode (first-time setup)" >&2
         echo "  --keep-browser       Keep browser open after completion" >&2
         echo "  --no-lint           Bypass run lint gate (not recommended)" >&2
+        echo "  --fail-on-warn       Treat lint warnings as errors (strict mode)" >&2
         echo "  --no-preflight       Skip pre-flight validation checks" >&2
         echo "  --retry/--no-retry   Enable/disable auto-retry (default: enabled)" >&2
         echo "  --hours NUM          Status window in hours (default: 72)" >&2
@@ -7482,6 +7485,10 @@ main() {
                 ;;
             --no-lint)
                 SKIP_LINT=true
+                shift
+                ;;
+            --fail-on-warn)
+                export APR_FAIL_ON_WARN=1
                 shift
                 ;;
             --no-preflight)
