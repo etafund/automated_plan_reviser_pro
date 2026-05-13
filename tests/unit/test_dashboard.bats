@@ -309,3 +309,103 @@ EOF
     [[ "$CAPTURED_STDERR" == *"Keys:"* ]]
     [[ "$CAPTURED_STDERR" == *"-"* ]]
 }
+
+@test "dashboard_render: desktop view preserves hierarchy, chart, table, and action footer" {
+    if ! command -v jq >/dev/null 2>&1; then
+        skip "jq not available"
+    fi
+
+    local metrics
+    metrics=$(cat << 'EOF'
+{
+  "rounds": [
+    {"round": 1, "timestamp": "2026-01-01T00:00:00Z", "output": {"char_count": 1200}},
+    {"round": 2, "timestamp": "2026-01-02T00:00:00Z", "output": {"char_count": 1900}},
+    {"round": 3, "timestamp": "2026-01-03T00:00:00Z", "output": {"char_count": 2100}}
+  ],
+  "convergence": {
+    "confidence": 0.82,
+    "estimated_rounds_remaining": 2
+  }
+}
+EOF
+)
+    DASHBOARD_ROUND_NUMS=(1 2 3)
+    DASHBOARD_ROUND_SIZES=(1200 1900 2100)
+    DASHBOARD_ROUND_ADDED=(null 20 12)
+    DASHBOARD_ROUND_DELETED=(null 5 3)
+    DASHBOARD_ROUND_SIMILARITY=(null 0.64 0.82)
+    DASHBOARD_ROUND_TS=("2026-01-01T00:00:00Z" "2026-01-02T00:00:00Z" "2026-01-03T00:00:00Z")
+    DASHBOARD_TOTAL_ROUNDS=3
+
+    NO_COLOR=1 capture_streams dashboard_render "default" "$metrics" 1
+
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+    [[ -z "$CAPTURED_STDOUT" ]]
+    [[ "$CAPTURED_STDERR" == *"APR Analytics Dashboard"* ]]
+    [[ "$CAPTURED_STDERR" == *"Press 'q' to quit"* ]]
+    [[ "$CAPTURED_STDERR" == *"CONVERGENCE STATUS"* ]]
+    [[ "$CAPTURED_STDERR" == *"QUICK STATS"* ]]
+    [[ "$CAPTURED_STDERR" == *"OUTPUT SIZE TREND"* ]]
+    [[ "$CAPTURED_STDERR" == *"ROUND DETAILS (use"* ]]
+    [[ "$CAPTURED_STDERR" == *"Keys: Enter=details  d=diff  r=refresh  ?=help  q=quit"* ]]
+    [[ "$CAPTURED_STDERR" == *" >   2"* ]]
+    [[ "$CAPTURED_STDERR" != *$'\033'* ]]
+}
+
+@test "dashboard_render: desktop sections appear in scan order and stay within 100 columns" {
+    if ! command -v jq >/dev/null 2>&1; then
+        skip "jq not available"
+    fi
+
+    local metrics
+    metrics=$(cat << 'EOF'
+{
+  "rounds": [
+    {"round": 1, "timestamp": "2026-01-01T00:00:00Z", "output": {"char_count": 1000}},
+    {"round": 2, "timestamp": "2026-01-02T00:00:00Z", "output": {"char_count": 2000}}
+  ],
+  "convergence": {
+    "confidence": 0.75,
+    "estimated_rounds_remaining": 3
+  }
+}
+EOF
+)
+    DASHBOARD_ROUND_NUMS=(1 2)
+    DASHBOARD_ROUND_SIZES=(1000 2000)
+    DASHBOARD_ROUND_ADDED=(null 18)
+    DASHBOARD_ROUND_DELETED=(null 6)
+    # shellcheck disable=SC2034  # Read indirectly by dashboard_render_round_table.
+    DASHBOARD_ROUND_SIMILARITY=(null 0.75)
+    # shellcheck disable=SC2034  # Read indirectly by dashboard_render_round_table.
+    DASHBOARD_ROUND_TS=("2026-01-01T00:00:00Z" "2026-01-02T00:00:00Z")
+    DASHBOARD_TOTAL_ROUNDS=2
+
+    capture_streams dashboard_render "default" "$metrics" 0
+
+    local header_line convergence_line stats_line chart_line table_line keys_line
+    header_line=$(awk '/APR Analytics Dashboard/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+    convergence_line=$(awk '/CONVERGENCE STATUS/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+    stats_line=$(awk '/QUICK STATS/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+    chart_line=$(awk '/OUTPUT SIZE TREND/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+    table_line=$(awk '/ROUND DETAILS/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+    keys_line=$(awk '/Keys: Enter=details/ {print NR; exit}' <<<"$CAPTURED_STDERR")
+
+    [[ "$header_line" =~ ^[0-9]+$ ]]
+    [[ "$convergence_line" =~ ^[0-9]+$ ]]
+    [[ "$stats_line" =~ ^[0-9]+$ ]]
+    [[ "$chart_line" =~ ^[0-9]+$ ]]
+    [[ "$table_line" =~ ^[0-9]+$ ]]
+    [[ "$keys_line" =~ ^[0-9]+$ ]]
+    (( header_line < convergence_line ))
+    (( convergence_line < stats_line ))
+    (( stats_line < chart_line ))
+    (( chart_line < table_line ))
+    (( table_line < keys_line ))
+
+    local max_width
+    max_width=$(printf '%s\n' "$CAPTURED_STDERR" | wc -L | awk '{print $1}')
+    [[ "$max_width" =~ ^[0-9]+$ ]]
+    (( max_width <= 100 ))
+}
