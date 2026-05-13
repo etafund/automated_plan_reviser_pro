@@ -232,6 +232,22 @@ apr_ui_feedback_line() {
     fi
 }
 
+apr_ui_error() {
+    apr_ui_feedback_line error "$@"
+}
+
+apr_ui_warn() {
+    apr_ui_feedback_line warning "$@"
+}
+
+apr_ui_info() {
+    apr_ui_feedback_line info "$@"
+}
+
+apr_ui_success() {
+    apr_ui_feedback_line success "$@"
+}
+
 apr_ui_progress() {
     apr_ui_feedback_line progress "$1" "${2:-}"
 }
@@ -245,6 +261,30 @@ apr_ui_cta() {
     apr_ui_quiet_enabled && return 0
 
     apr_ui_feedback_line cta "$label: $command_text" "$hint"
+}
+
+apr_ui_banner() {
+    local version="${1:-1.0.0}"
+    local layout
+    layout=$(apr_layout_mode)
+
+    if [[ "$layout" == "desktop" ]]; then
+        if apr_gum_allowed; then
+            gum style \
+                --foreground 212 --border double --border-foreground 212 \
+                --padding "1 2" --margin "1 2" --align center --width 60 \
+                "APR v${version}" "Iterative AI-Powered Spec Refinement" >&2
+        else
+            printf '\n  APR v%s\n  Iterative AI-Powered Spec Refinement\n\n' "$version" >&2
+        fi
+    else
+        # Compact/Mobile banner
+        if apr_gum_allowed; then
+            gum style --foreground 212 --bold "APR v${version}" >&2
+        else
+            printf 'APR v%s\n' "$version" >&2
+        fi
+    fi
 }
 
 apr_ui_run_step() {

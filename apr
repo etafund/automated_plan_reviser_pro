@@ -8850,10 +8850,15 @@ cmd_robot() {
 # -----------------------------------------------------------------------------
 
 show_help() {
-    local detailed=false
-    if [[ "${1:-}" == "--detailed" || "${STATS_DETAILED:-false}" == "true" ]]; then
+    local detailed=false arg
+    for arg in "$@"; do
+        if [[ "$arg" == "--detailed" ]]; then
+            detailed=true
+            break
+        fi
+    done
+    if [[ "${STATS_DETAILED:-false}" == "true" ]]; then
         detailed=true
-        [[ "${1:-}" == "--detailed" ]] && shift
     fi
 
     check_gum || true
@@ -9135,7 +9140,7 @@ main() {
                 exit $EXIT_SUCCESS
                 ;;
             --help|-h)
-                show_help "${positional_args[@]}"
+                show_help "$@"
                 exit $EXIT_SUCCESS
                 ;;
             --compact)
@@ -9437,7 +9442,7 @@ main() {
                 exit $EXIT_SUCCESS
                 ;;
             --help|-h)
-                show_help "${positional_args[@]}"
+                show_help "$@"
                 exit $EXIT_SUCCESS
                 ;;
             -*)

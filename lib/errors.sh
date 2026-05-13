@@ -16,14 +16,18 @@ apr_error_human_message() {
 
     case "$level" in
         error)
-            if declare -F print_error >/dev/null; then
+            if declare -F apr_ui_error >/dev/null; then
+                apr_ui_error "$message"
+            elif declare -F print_error >/dev/null; then
                 print_error "$message"
             else
                 printf '[apr] error: %s\n' "$message" >&2
             fi
             ;;
         info)
-            if declare -F print_info >/dev/null; then
+            if declare -F apr_ui_info >/dev/null; then
+                apr_ui_info "$message"
+            elif declare -F print_info >/dev/null; then
                 print_info "$message"
             else
                 printf '[apr] info: %s\n' "$message" >&2
