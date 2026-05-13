@@ -67,6 +67,7 @@
 
 set -euo pipefail
 
+readonly PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION="1.2.2"
 
 # Metrics schema (analytics)
@@ -1810,9 +1811,62 @@ load_prompt_template() {
     printf '%s' "$template"
 }
 
+# build_prompt_manifest <include_impl> <config_file>
+#
+# Render the prompt manifest preamble for a workflow run (bd-3i5).
+# Resolves readme/spec/implementation paths from the workflow yaml,
+# decides each file's inclusion_reason (required vs impl_every_n vs
+# skipped), and renders the human-facing text via lib/manifest.sh.
+#
+# Emits a banner-suffixed manifest on stdout. Returns empty output (no
+# preamble at all) when:
+#   - the lib helpers are not loaded (older lib/ without manifest.sh)
+#   - APR_NO_MANIFEST=1 in the environment (operator opt-out)
+#   - no workflow file is available (fallback prompt path)
+build_prompt_manifest() {
+    local include_impl="${1:-false}"
+    local config_file="${2:-}"
+
+    if [[ "${APR_NO_MANIFEST:-0}" == "1" ]]; then
+        return 0
+    fi
+    if [[ -z "$config_file" || ! -f "$config_file" ]]; then
+        return 0
+    fi
+    # lib/manifest.sh provides apr_lib_manifest_render_text. If it
+    # wasn't sourced (older install or test stub), skip silently.
+    if ! command -v apr_lib_manifest_render_text >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local readme spec impl
+    readme=$(yaml_unquote "$(get_config_value "readme" "$config_file" 2>/dev/null || echo "")")
+    spec=$(yaml_unquote   "$(get_config_value "spec"   "$config_file" 2>/dev/null || echo "")")
+    impl=$(yaml_unquote   "$(get_config_value "implementation" "$config_file" 2>/dev/null || echo "")")
+
+    local -a triples=()
+    [[ -n "$readme" ]] && triples+=("$readme|required|")
+    [[ -n "$spec"   ]] && triples+=("$spec|required|")
+    if [[ -n "$impl" ]]; then
+        if [[ "$include_impl" == "true" ]]; then
+            triples+=("$impl|impl_every_n|")
+        else
+            triples+=("$impl|skipped|not-included-this-round")
+        fi
+    fi
+    if [[ ${#triples[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    apr_lib_manifest_render_text "${triples[@]}"
+    printf '\n---\n\n'
+}
+
 # Build the revision prompt for GPT Pro review
-# Usage: build_revision_prompt [include_impl]
-# Returns prompt via stdout
+# Usage: build_revision_prompt [include_impl] [config_file]
+# Returns prompt via stdout. Prepends a deterministic manifest preamble
+# (bd-3i5) when manifest helpers are available and APR_NO_MANIFEST is
+# unset.
 build_revision_prompt() {
     local include_impl="${1:-false}"
     local config_file="${2:-}"
@@ -1824,7 +1878,8 @@ build_revision_prompt() {
         return 0
     fi
 
-    local prompt="First, read this README:
+    local prompt=""
+    prompt+="First, read this README:
 
 \`\`\`
 <contents of README will be included by oracle>
@@ -2069,6 +2124,72 @@ cmd_lint() {
     apr_lib_validate_emit_human >&2
     apr_emit_error_code_tag "$code"
     return "$(apr_exit_code_for_code "$code")"
+}
+
+run_lint_gate() {
+    local round_num="$1"
+    local workflow="$2"
+    local include_impl="$3"
+
+    lint_collect_findings "$round_num" "$workflow" "$include_impl"
+
+    local code error_count warning_count
+    code=$(lint_result_code)
+    error_count=$(apr_lib_validate_error_count)
+    warning_count=$(apr_lib_validate_warning_count)
+
+    if [[ "$code" == "ok" ]]; then
+        if [[ "$warning_count" -gt 0 ]]; then
+            print_warning "Lint gate passed with $warning_count warning(s)"
+            apr_lib_validate_emit_human >&2
+        else
+            verbose "Lint gate passed for workflow '$workflow'"
+        fi
+        return 0
+    fi
+
+    print_error "Lint gate failed for workflow '$workflow' ($error_count error(s), $warning_count warning(s))"
+    apr_lib_validate_emit_human >&2
+    apr_emit_error_code_tag "$code"
+    return "$(apr_exit_code_for_code "$code")"
+}
+
+cmd_prompts() {
+    local subcommand="${1:-}"
+    [[ -n "$subcommand" ]] && shift
+    
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+
+    case "$subcommand" in
+        compile)
+            python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/compile-prompt.py" "${args[@]}"
+            ;;
+        lint)
+            python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/lint-prompt.py" "${args[@]}"
+            ;;
+        *)
+            apr_fail "usage_error" "Subcommand required: compile, lint" "Usage: apr prompts {compile|lint} [options]"
+            ;;
+    esac
+}
+
+robot_lint_gate() {
+    local round_num="$1"
+    local workflow="$2"
+    local include_impl="$3"
+
+    lint_collect_findings "$round_num" "$workflow" "$include_impl"
+
+    local data code
+    data=$(lint_data_json "$workflow" "$round_num" "$include_impl")
+    code=$(lint_result_code)
+
+    if [[ "$code" == "ok" ]]; then
+        return 0
+    fi
+
+    robot_fail "$code" "$data" "Fix lint errors before running"
 }
 
 # -----------------------------------------------------------------------------
@@ -3437,6 +3558,7 @@ run_round() {
     local manual_login="${MANUAL_LOGIN:-false}"
     local keep_browser="${KEEP_BROWSER:-false}"
     local skip_preflight="${SKIP_PREFLIGHT:-false}"
+    local skip_lint="${SKIP_LINT:-false}"
     local enable_retry="${ENABLE_RETRY:-true}"
 
     print_banner
@@ -3444,7 +3566,7 @@ run_round() {
     verbose "Starting run_round: round=$round_num workflow=$workflow"
     verbose "Options: include_impl=$include_impl dry_run=$dry_run render=$render"
     verbose "Options: wait_mode=$wait_mode manual_login=$manual_login"
-    verbose "Options: skip_preflight=$skip_preflight enable_retry=$enable_retry"
+    verbose "Options: skip_preflight=$skip_preflight skip_lint=$skip_lint enable_retry=$enable_retry"
 
     # Load workflow config
     local config_path="$CONFIG_DIR/workflows/$workflow.yaml"
@@ -3479,6 +3601,17 @@ run_round() {
         fi
     fi
 
+    if [[ "$skip_lint" == "true" ]]; then
+        print_warning "Lint gate bypassed with --no-lint"
+        print_warning "APR may invoke Oracle with invalid workflow inputs."
+    else
+        local lint_gate_result=0
+        run_lint_gate "$round_num" "$workflow" "$include_impl" || lint_gate_result=$?
+        if [[ $lint_gate_result -ne 0 ]]; then
+            exit "$lint_gate_result"
+        fi
+    fi
+
     local config_errors=()
     [[ -z "$model" ]] && config_errors+=("Model not configured in workflow")
     [[ -z "$output_dir" ]] && config_errors+=("Output directory not configured in workflow")
@@ -3489,6 +3622,16 @@ run_round() {
         done
         print_info "Fix workflow configuration in $config_path"
         exit $EXIT_CONFIG_ERROR
+    fi
+
+    if [[ "$dry_run" != "true" && "$render" != "true" ]]; then
+        if ! check_oracle; then
+            if [[ -n "${APR_NO_NPX:-}" ]]; then
+                apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle; APR_NO_NPX is set, so npx fallback is disabled"
+            else
+                apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle, or ensure npx is available"
+            fi
+        fi
     fi
 
     verbose "Config parsed:"
@@ -3628,7 +3771,16 @@ run_round() {
     # hasn't set ORACLE_CMD yet. Call it here if needed.
     if [[ "$render" != "true" ]]; then
         if [[ ${#ORACLE_CMD[@]} -eq 0 ]]; then
-            check_oracle || true
+            if ! check_oracle; then
+                if [[ "$dry_run" == "true" ]]; then
+                    ORACLE_CMD=("oracle")
+                    [[ "$QUIET_MODE" != "true" ]] && print_warning "Oracle not found; dry run will use a placeholder command"
+                elif [[ -n "${APR_NO_NPX:-}" ]]; then
+                    apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle; APR_NO_NPX is set, so npx fallback is disabled"
+                else
+                    apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle, or ensure npx is available"
+                fi
+            fi
         fi
         if [[ "$dry_run" == "true" ]]; then
             oracle_detect_features fast || true
@@ -3662,6 +3814,15 @@ run_round() {
 
     # Render mode
     if [[ "$render" == "true" ]]; then
+        if [[ ${#ORACLE_CMD[@]} -eq 0 ]]; then
+            if ! check_oracle; then
+                if [[ -n "${APR_NO_NPX:-}" ]]; then
+                    apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle; APR_NO_NPX is set, so npx fallback is disabled"
+                else
+                    apr_fail "dependency_missing" "Oracle not found" "Install with: npm install -g @steipete/oracle, or ensure npx is available"
+                fi
+            fi
+        fi
         local render_args=("--render")
         [[ "$copy" == "true" ]] && render_args+=("--copy")
 
@@ -6107,6 +6268,7 @@ robot_run() {
     local round_num="${1:-}"
     local workflow="${WORKFLOW:-default}"
     local include_impl="${INCLUDE_IMPL:-false}"
+    local skip_lint="${SKIP_LINT:-false}"
 
     verbose "robot_run: round=$round_num workflow=$workflow include_impl=$include_impl"
 
@@ -6120,13 +6282,6 @@ robot_run() {
         robot_fail "usage_error" "$(jq -nc --arg round "$round_num" '{argument: "round", value: $round}')" "Round must be a non-negative integer"
         return $?
     fi
-
-    # Check Oracle
-    if ! check_oracle; then
-        robot_fail "dependency_missing" '{"dependency":"oracle"}' "Oracle not available"
-        return $?
-    fi
-    oracle_detect_features || true
 
     # Load workflow config
     local config_path="$CONFIG_DIR/workflows/$workflow.yaml"
@@ -6151,6 +6306,19 @@ robot_run() {
             include_impl=true
         fi
     fi
+
+    if [[ "$skip_lint" == "true" ]]; then
+        printf '[apr] warning: lint gate bypassed with --no-lint\n' >&2
+    else
+        robot_lint_gate "$round_num" "$workflow" "$include_impl" || return $?
+    fi
+
+    # Check Oracle only after local lint has passed.
+    if ! check_oracle; then
+        robot_fail "dependency_missing" '{"dependency":"oracle"}' "Oracle not available"
+        return $?
+    fi
+    oracle_detect_features || true
 
     if [[ -z "$model" ]]; then
         robot_fail "config_error" '{"field":"model"}' "Model not configured in workflow"
@@ -6673,6 +6841,7 @@ robot_help() {
             "-w, --workflow NAME": "Workflow name (default: from config)",
             "-i, --include-impl": "Include implementation document",
             "--round N": "Round context for lint warnings",
+            "--no-lint": "Bypass run lint gate (explicit and noisy)",
             "-f, --format FORMAT": "Robot output format: json or toon (env: APR_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)",
             "--stats": "Show token savings statistics (JSON vs TOON byte comparison)",
             "--compact": "Minified JSON output"
@@ -6785,6 +6954,10 @@ cmd_robot() {
                 INCLUDE_IMPL=true
                 shift
                 ;;
+            --no-lint)
+                SKIP_LINT=true
+                shift
+                ;;
             -*)
                 # Use jq for proper escaping of user input in JSON
                 robot_fail "usage_error" "$(jq -nc --arg opt "$1" '{option: $opt}')" "Unknown option: $1"
@@ -6877,6 +7050,7 @@ show_help() {
         gum style --foreground 214 --bold "COMMANDS" >&2
         gum style --foreground 39 "  Core Workflow" >&2
         echo "    $(gum style --foreground 82 'run <round>')        Run a revision round" >&2
+        echo "    $(gum style --foreground 82 'prompts <cmd>')      v18 prompt compilation and linting" >&2
         echo "    $(gum style --foreground 82 'lint [round]')       Validate workflow/docs/templates" >&2
         echo "    $(gum style --foreground 82 'setup')              Interactive workflow setup wizard" >&2
         echo "    $(gum style --foreground 82 'status')             Check Oracle session status" >&2
@@ -6911,6 +7085,7 @@ show_help() {
         gum style --faint "  --wait               Wait for completion (blocking)" >&2
         gum style --faint "  --login              Manual login mode (first-time setup)" >&2
         gum style --faint "  --keep-browser       Keep browser open after completion" >&2
+        gum style --faint "  --no-lint           Bypass run lint gate (not recommended)" >&2
         gum style --faint "  --no-preflight       Skip pre-flight validation checks" >&2
         gum style --faint "  --retry/--no-retry   Enable/disable auto-retry (default: enabled)" >&2
         gum style --faint "  --hours NUM          Status window in hours (default: 72)" >&2
@@ -6997,6 +7172,7 @@ show_help() {
         echo -e "${BOLD}${YELLOW}COMMANDS${NC}" >&2
         echo -e "  ${CYAN}Core Workflow${NC}" >&2
         echo -e "    ${GREEN}run <round>${NC}        Run a revision round" >&2
+        echo -e "    ${GREEN}prompts <cmd>${NC}      v18 prompt compilation and linting" >&2
         echo -e "    ${GREEN}lint [round]${NC}       Validate workflow/docs/templates" >&2
         echo -e "    ${GREEN}setup${NC}              Interactive workflow setup wizard" >&2
         echo -e "    ${GREEN}status${NC}             Check Oracle session status" >&2
@@ -7030,6 +7206,7 @@ show_help() {
         echo "  --wait               Wait for completion (blocking)" >&2
         echo "  --login              Manual login mode (first-time setup)" >&2
         echo "  --keep-browser       Keep browser open after completion" >&2
+        echo "  --no-lint           Bypass run lint gate (not recommended)" >&2
         echo "  --no-preflight       Skip pre-flight validation checks" >&2
         echo "  --retry/--no-retry   Enable/disable auto-retry (default: enabled)" >&2
         echo "  --hours NUM          Status window in hours (default: 72)" >&2
@@ -7185,6 +7362,7 @@ main() {
     WAIT_MODE=false
     MANUAL_LOGIN=false
     KEEP_BROWSER=false
+    SKIP_LINT=false
     SKIP_PREFLIGHT=false
     ENABLE_RETRY=true
     INTEGRATE_OUTPUT=""
@@ -7250,6 +7428,10 @@ main() {
                 KEEP_BROWSER=true
                 shift
                 ;;
+            --no-lint)
+                SKIP_LINT=true
+                shift
+                ;;
             --no-preflight)
                 SKIP_PREFLIGHT=true
                 shift
@@ -7300,6 +7482,14 @@ main() {
                 fi
                 EXPORT_ROUNDS="$2"
                 shift 2
+                ;;
+            --route|--access-path|--baseline|--manifest|--policy|--trust)
+                positional_args+=("$1" "${2:-}")
+                shift 2
+                ;;
+            --formal-first-plan)
+                positional_args+=("$1")
+                shift
                 ;;
             --since)
                 if [[ -z "${2:-}" || "$2" == -* ]]; then
@@ -7382,13 +7572,7 @@ main() {
     fi
 
     local oracle_required=false
-    if [[ "$command_is_round" == "true" || "$command" == "run" ]]; then
-        if [[ "$DRY_RUN" == "true" && "$RENDER" != "true" ]]; then
-            oracle_required=false
-        else
-            oracle_required=true
-        fi
-    elif [[ "$command" == "status" || "$command" == "attach" ]]; then
+    if [[ "$command" == "status" || "$command" == "attach" ]]; then
         oracle_required=true
     fi
 
@@ -7401,8 +7585,9 @@ main() {
             fi
         fi
     else
-        # Best-effort Oracle detection for dry-run output
-        if [[ "$command_is_round" == "true" || "$command" == "run" ]]; then
+        # Best-effort Oracle detection for dry-run output. Real run/render
+        # paths check Oracle after the lint gate inside run_round().
+        if [[ ("$command_is_round" == "true" || "$command" == "run") && "$DRY_RUN" == "true" && "$RENDER" != "true" ]]; then
             if ! check_oracle; then
                 ORACLE_CMD=("oracle")
                 [[ "$QUIET_MODE" != "true" ]] && print_warning "Oracle not found; dry run will use a placeholder command"
@@ -7412,6 +7597,9 @@ main() {
 
     # Execute command
     case "$command" in
+        prompts)
+            cmd_prompts "${positional_args[@]}"
+            ;;
         lint)
             cmd_lint "${positional_args[@]}"
             ;;

@@ -51,7 +51,7 @@
       ]
     },
     "schema_version": {
-      "type": "string"
+      "const": "json_envelope.v1"
     },
     "warnings": {
       "items": {

@@ -1,6 +1,7 @@
 {
   "artifact_name": "source-lock.json",
   "bundle_version": "v18.0.0",
+  "source_baseline_sha256": "sha256:b91d369c3f7250980878f782559b0c4ccc00a829603c88cf555c0b23bdd12ee6",
   "captured_at": "2026-05-12T00:00:00Z",
   "gaps": [
     {
