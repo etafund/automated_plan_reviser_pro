@@ -58,9 +58,13 @@ teardown() {
     fi
 
     # Or check for any lock file
-    if ls "$CONFIG_DIR"/*.lock 2>/dev/null | grep -q .; then
-        lock_found=true
-    fi
+    local candidate_lock
+    for candidate_lock in "$CONFIG_DIR"/*.lock "$CONFIG_DIR"/.locks/*.lock; do
+        if [[ -f "$candidate_lock" ]]; then
+            lock_found=true
+            break
+        fi
+    done
 
     log_test_actual "lock found" "$lock_found"
 
@@ -240,6 +244,27 @@ teardown() {
     run acquire_lock "test" "1"
     assert_success
     release_lock
+}
+
+@test "background_lock_detach_parent: fallback lock records child pid before cleanup" {
+    local lock_dir="$CONFIG_DIR/.locks"
+    local lock_file="$lock_dir/test_1.lock"
+    mkdir -p "$lock_dir"
+    printf '%s\n' "$$" > "$lock_file"
+
+    APR_LOCK_FD=""
+    APR_LOCK_FILE="$lock_file"
+
+    background_lock_detach_parent "12345"
+
+    [[ "$(cat "$lock_file")" == "12345" ]]
+    [[ -z "${APR_LOCK_FD:-}" ]]
+    [[ -z "${APR_LOCK_FILE:-}" ]]
+
+    cleanup_temp
+
+    [[ -f "$lock_file" ]]
+    [[ "$(cat "$lock_file")" == "12345" ]]
 }
 
 # =============================================================================

@@ -2246,6 +2246,132 @@ redact_prompt_variable_if_requested() {
     return 0
 }
 
+ensure_apr_temp_dir() {
+    if [[ -n "$APR_TEMP_DIR" && -d "$APR_TEMP_DIR" ]]; then
+        return 0
+    fi
+
+    APR_TEMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t apr 2>/dev/null || echo "")
+    [[ -n "$APR_TEMP_DIR" && -d "$APR_TEMP_DIR" ]]
+}
+
+redaction_merge_summaries() {
+    local left="${1:-{\"total\":0,\"by_type\":{}}}"
+    local right="${2:-{\"total\":0,\"by_type\":{}}}"
+    local merged=""
+
+    if command -v jq >/dev/null 2>&1; then
+        if merged=$(jq -nc --argjson left "$left" --argjson right "$right" '
+            ($left.by_type // {}) as $lb |
+            ($right.by_type // {}) as $rb |
+            {
+              total: (($left.total // 0) + ($right.total // 0)),
+              by_type: (
+                reduce ((($lb | keys_unsorted) + ($rb | keys_unsorted)) | unique[]) as $k
+                  ({}; .[$k] = (($lb[$k] // 0) + ($rb[$k] // 0)))
+              )
+            }' 2>/dev/null); then
+            printf '%s' "$merged"
+            return 0
+        fi
+    fi
+
+    local left_total=0 right_total=0
+    left_total=$(printf '%s' "$left" | sed -nE 's/.*"total"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' | head -n1)
+    right_total=$(printf '%s' "$right" | sed -nE 's/.*"total"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' | head -n1)
+    [[ "$left_total" =~ ^[0-9]+$ ]] || left_total=0
+    [[ "$right_total" =~ ^[0-9]+$ ]] || right_total=0
+    printf '{"total":%s,"by_type":{}}' "$(( left_total + right_total ))"
+}
+
+combine_file_redaction_summary() {
+    local file_count="${APR_FILE_REDACT_COUNT:-0}"
+    [[ "$file_count" =~ ^[0-9]+$ ]] || file_count=0
+    [[ "$file_count" -gt 0 ]] || return 0
+
+    local prompt_count="${APR_PROMPT_REDACT_COUNT:-0}"
+    [[ "$prompt_count" =~ ^[0-9]+$ ]] || prompt_count=0
+    APR_PROMPT_REDACT_COUNT=$(( prompt_count + file_count ))
+    APR_PROMPT_REDACT_SUMMARY=$(redaction_merge_summaries \
+        "${APR_PROMPT_REDACT_SUMMARY:-{\"total\":0,\"by_type\":{}}}" \
+        "${APR_FILE_REDACT_SUMMARY:-{\"total\":0,\"by_type\":{}}}")
+    export APR_PROMPT_REDACT_COUNT APR_PROMPT_REDACT_SUMMARY
+}
+
+redact_oracle_file_args_if_requested() {
+    APR_REDACTED_FILE_ARGS=("$@")
+    APR_FILE_REDACT_ERROR=""
+    APR_FILE_REDACT_COUNT=0
+    APR_FILE_REDACT_SUMMARY='{"total":0,"by_type":{}}'
+
+    [[ "${APR_REDACT:-}" == "1" ]] || return 0
+
+    if ! command -v apr_lib_redact_prompt_assign >/dev/null 2>&1; then
+        APR_FILE_REDACT_ERROR="APR_REDACT=1 requested but lib/redact.sh is unavailable"
+        return 1
+    fi
+    if ! ensure_apr_temp_dir; then
+        APR_FILE_REDACT_ERROR="Failed to create temporary directory for redacted documents"
+        return 1
+    fi
+
+    local -a result=()
+    local arg src content redacted redacted_path count summary
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        case "$arg" in
+            --file)
+                if [[ $# -lt 2 ]]; then
+                    APR_FILE_REDACT_ERROR="Malformed Oracle file arguments"
+                    return 1
+                fi
+                src="$2"
+                if [[ ! -r "$src" ]]; then
+                    APR_FILE_REDACT_ERROR="Cannot read document for redaction: $src"
+                    return 1
+                fi
+                if ! content=$(<"$src"); then
+                    APR_FILE_REDACT_ERROR="Failed to read document for redaction: $src"
+                    return 1
+                fi
+                redacted="$content"
+                if ! apr_lib_redact_prompt_assign redacted "$content"; then
+                    APR_FILE_REDACT_ERROR="Document redaction failed: $src"
+                    return 1
+                fi
+                count="${APR_REDACT_COUNT:-0}"
+                [[ "$count" =~ ^[0-9]+$ ]] || count=0
+                summary=$(apr_lib_redact_summary)
+                APR_FILE_REDACT_COUNT=$(( APR_FILE_REDACT_COUNT + count ))
+                APR_FILE_REDACT_SUMMARY=$(redaction_merge_summaries "$APR_FILE_REDACT_SUMMARY" "$summary")
+                if [[ "$count" -gt 0 ]]; then
+                    redacted_path=$(mktemp "${APR_TEMP_DIR}/apr-redacted-file.XXXXXX" 2>/dev/null || echo "")
+                    if [[ -z "$redacted_path" ]]; then
+                        APR_FILE_REDACT_ERROR="Failed to create redacted document copy"
+                        return 1
+                    fi
+                    if ! printf '%s' "$redacted" > "$redacted_path"; then
+                        APR_FILE_REDACT_ERROR="Failed to write redacted document copy"
+                        return 1
+                    fi
+                    result+=(--file "$redacted_path")
+                else
+                    result+=(--file "$src")
+                fi
+                shift 2
+                ;;
+            *)
+                result+=("$arg")
+                shift
+                ;;
+        esac
+    done
+
+    APR_REDACTED_FILE_ARGS=("${result[@]}")
+    export APR_FILE_REDACT_COUNT APR_FILE_REDACT_SUMMARY
+    return 0
+}
+
 # -----------------------------------------------------------------------------
 # Lint / Validation Command
 # -----------------------------------------------------------------------------
@@ -5103,6 +5229,20 @@ run_round() {
         fi
         return "$(apr_exit_code_for_code config_error)"
     fi
+    if [[ "$dry_run" != "true" && "$manifest_only" != "true" ]]; then
+        if ! redact_oracle_file_args_if_requested "${file_args[@]}"; then
+            if [[ "$ROBOT_MODE" == "true" ]]; then
+                robot_json false "config_error" "$(jq -nc --arg err "$APR_FILE_REDACT_ERROR" '{errors:[$err]}')" \
+                    "Check document paths or unset APR_REDACT"
+            else
+                apr_fail "config_error" "$APR_FILE_REDACT_ERROR" \
+                    "Check document paths or unset APR_REDACT"
+            fi
+            return "$(apr_exit_code_for_code config_error)"
+        fi
+        file_args=("${APR_REDACTED_FILE_ARGS[@]}")
+        combine_file_redaction_summary
+    fi
     if [[ "${APR_PROMPT_REDACT_COUNT:-0}" -gt 0 && "$QUIET_MODE" != "true" ]]; then
         print_info "Prompt redaction applied: ${APR_PROMPT_REDACT_COUNT} replacement(s)"
     fi
@@ -5495,18 +5635,22 @@ run_round() {
         ) &
         local oracle_pid=$!
 
+        # Handoff the lock to the background child immediately. If the parent
+        # is interrupted during the liveness check below, cleanup_temp must not
+        # remove the lock path while the child still holds the flock. For the
+        # file-lock fallback, this also swaps the lock PID from parent to child
+        # before stale-lock detection can misclassify the live background run.
+        background_lock_detach_parent "$oracle_pid"
+
         # Brief delay to verify process started
         sleep 0.5
 
         # Verify the process is actually running
         if ! kill -0 "$oracle_pid" 2>/dev/null; then
-            release_lock 2>/dev/null || true
             print_error "Oracle process failed to start"
             print_info "Try running with --wait to see error output"
             exit $EXIT_DEPENDENCY_ERROR
         fi
-
-        background_lock_detach_parent "$oracle_pid"
 
         print_success "Oracle running in background (PID: $oracle_pid)"
         echo "" >&2
@@ -8438,6 +8582,14 @@ robot_run() {
             "Install lib/redact.sh or unset APR_REDACT"
         return $?
     fi
+    if ! redact_oracle_file_args_if_requested "${file_args[@]}"; then
+        release_lock 2>/dev/null || true
+        robot_fail "config_error" "$(jq -nc --arg err "$APR_FILE_REDACT_ERROR" '{errors:[$err]}')" \
+            "Check document paths or unset APR_REDACT"
+        return $?
+    fi
+    file_args=("${APR_REDACTED_FILE_ARGS[@]}")
+    combine_file_redaction_summary
 
     if ! prompt_quality_check "$prompt" "$config_path" "prompt"; then
         release_lock 2>/dev/null || true
@@ -8488,17 +8640,18 @@ robot_run() {
     ) >"$oracle_log" 2>&1 &
     local oracle_pid=$!
 
+    # Handoff lock ownership before the liveness sleep. A signal in this window
+    # must not let parent cleanup remove or stale-mark a live background run.
+    background_lock_detach_parent "$oracle_pid"
+
     # Brief delay to verify process started
     sleep 0.5
 
     # Verify the process is actually running
     if ! kill -0 "$oracle_pid" 2>/dev/null; then
-        release_lock 2>/dev/null || true
         robot_fail "internal_error" '{"reason":"process_start_failed"}' "Oracle process failed to start immediately"
         return $?
     fi
-
-    background_lock_detach_parent "$oracle_pid"
 
     # Return session info
     local redaction_count_json="${APR_PROMPT_REDACT_COUNT:-0}"
