@@ -602,3 +602,124 @@ apr_lib_validate_documents_exist() {
         fi
     done
 }
+
+# =============================================================================
+# bd-zd6: per-document size policy
+# =============================================================================
+#
+# Default warning thresholds (bytes) for the canonical document roles.
+# These are conservative — a real-world README under 256 bytes is almost
+# certainly a stub; a spec under 1 KiB is unlikely to be substantive.
+# Operators can override per-role via APR_DOC_*_WARN_BYTES env vars.
+_APR_VALIDATE_DEFAULT_WARN_README=256
+_APR_VALIDATE_DEFAULT_WARN_SPEC=1024
+_APR_VALIDATE_DEFAULT_WARN_IMPL=512
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_doc_size <path> <role> [<warn_threshold>] [<fatal_threshold>]
+#
+# Apply a per-document size policy to <path>:
+#   - bytes < fatal_threshold (>0)  ->  config_error
+#   - bytes < warn_threshold (>0)   ->  config_warning (escalates to error
+#                                       under APR_FAIL_ON_WARN via
+#                                       apr_lib_validate_finalize_strict)
+#   - otherwise: no finding.
+#
+# Missing/unreadable files are NOT this function's concern — they are
+# already flagged by apr_lib_validate_documents_exist. doc_size only
+# fires when the file exists and is readable.
+#
+# <role> is a short label like "readme", "spec", or "impl" — used in
+# the finding's details JSON and as the env-var override key. If
+# <warn_threshold> is omitted/empty, defaults are pulled from
+# APR_DOC_<ROLE>_WARN_BYTES env var, falling back to the constants
+# above. Pass "0" to disable the warning check.
+#
+# <fatal_threshold> defaults to 0 (disabled). Strict mode does NOT
+# auto-pick a fatal threshold; the operator must set it explicitly via
+# APR_DOC_<ROLE>_FATAL_BYTES or the third argument.
+# -----------------------------------------------------------------------------
+apr_lib_validate_doc_size() {
+    local path="${1:?path required}"
+    local role="${2:?role required}"
+    local warn_threshold="${3-}"
+    local fatal_threshold="${4-}"
+
+    [[ -e "$path" && -r "$path" ]] || return 0
+
+    # Resolve per-role thresholds: explicit arg > env override > default.
+    local role_upper
+    role_upper=$(printf '%s' "$role" | tr '[:lower:]' '[:upper:]')
+    if [[ -z "$warn_threshold" ]]; then
+        local env_var="APR_DOC_${role_upper}_WARN_BYTES"
+        warn_threshold="${!env_var-}"
+    fi
+    if [[ -z "$warn_threshold" ]]; then
+        case "$role" in
+            readme)            warn_threshold="$_APR_VALIDATE_DEFAULT_WARN_README" ;;
+            spec|specification) warn_threshold="$_APR_VALIDATE_DEFAULT_WARN_SPEC" ;;
+            impl|implementation) warn_threshold="$_APR_VALIDATE_DEFAULT_WARN_IMPL" ;;
+            *) warn_threshold=0 ;;
+        esac
+    fi
+    if [[ -z "$fatal_threshold" ]]; then
+        local fenv_var="APR_DOC_${role_upper}_FATAL_BYTES"
+        fatal_threshold="${!fenv_var:-0}"
+    fi
+
+    # Coerce to int; non-numeric -> disabled.
+    [[ "$warn_threshold"  =~ ^[0-9]+$ ]] || warn_threshold=0
+    [[ "$fatal_threshold" =~ ^[0-9]+$ ]] || fatal_threshold=0
+
+    local bytes
+    bytes=$(apr_lib_manifest_size "$path" 2>/dev/null || echo "0")
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]]; then
+        return 0
+    fi
+
+    local details
+    details=$(printf '{"path":"%s","role":"%s","bytes":%s,"warn_threshold":%s,"fatal_threshold":%s}' \
+        "$(_apr_validate_json_escape "$path")" \
+        "$(_apr_validate_json_escape "$role")" \
+        "$bytes" \
+        "$warn_threshold" \
+        "$fatal_threshold")
+
+    # Fatal first — beats the warning if both would fire.
+    if [[ "$fatal_threshold" -gt 0 ]] && [[ "$bytes" -lt "$fatal_threshold" ]]; then
+        apr_lib_validate_add_error "config_error" \
+            "Document $path (role: $role) is below the fatal size threshold (${bytes} < ${fatal_threshold} bytes)." \
+            "Populate the document, lower APR_DOC_${role_upper}_FATAL_BYTES, or remove the role from the workflow." \
+            "$path" \
+            "$details"
+        return 0
+    fi
+    if [[ "$warn_threshold" -gt 0 ]] && [[ "$bytes" -lt "$warn_threshold" ]]; then
+        apr_lib_validate_add_warning "config_warning" \
+            "Document $path (role: $role) is suspiciously small (${bytes} < ${warn_threshold} bytes)." \
+            "If this is intentional, lower APR_DOC_${role_upper}_WARN_BYTES; if not, populate the file before running." \
+            "$path" \
+            "$details"
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_doc_sizes <triples...>
+#
+# Convenience wrapper: apply apr_lib_validate_doc_size to several
+# documents in one call. Triples are pipe-separated strings of:
+#   "<path>|<role>|<warn>|<fatal>"
+# Warn/fatal are optional (empty = use env/default).
+#
+# Skips empty paths so callers can drop unset workflow fields in
+# without conditionals.
+# -----------------------------------------------------------------------------
+apr_lib_validate_doc_sizes() {
+    local triple path role warn fatal
+    for triple in "$@"; do
+        IFS='|' read -r path role warn fatal <<< "$triple"
+        [[ -z "$path" ]] && continue
+        apr_lib_validate_doc_size "$path" "$role" "$warn" "$fatal"
+    done
+}

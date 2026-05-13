@@ -465,3 +465,114 @@ assert len(d['hits']) >= 1
     apr_lib_validate_additional_placeholders "$input" "tpl"
     [ "$(apr_lib_validate_warning_count)" = "0" ]
 }
+
+# =============================================================================
+# bd-zd6: per-document size policy
+# =============================================================================
+
+@test "doc_size: tiny readme triggers warning at default threshold" {
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/r.md" "readme"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+    [[ "${_APR_VALIDATE_WARN_MSG[0]}" == *"role: readme"* ]]
+    [[ "${_APR_VALIDATE_WARN_MSG[0]}" == *"suspiciously small"* ]]
+}
+
+@test "doc_size: large readme produces no findings" {
+    printf '%-2000s\n' "filler" > "$BATS_TEST_TMPDIR/r.md"
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/r.md" "readme"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "doc_size: explicit fatal threshold blocks below-threshold doc" {
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/r.md" "readme" "" 100
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+    # Fatal beats warn — no double-flag.
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+    [[ "${_APR_VALIDATE_ERR_MSG[0]}" == *"fatal size threshold"* ]]
+}
+
+@test "doc_size: env-var override for warn threshold honored" {
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    APR_DOC_README_WARN_BYTES=20 apr_lib_validate_doc_size \
+        "$BATS_TEST_TMPDIR/r.md" "readme"
+    # Tiny file (5 bytes) under threshold (20).
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+}
+
+@test "doc_size: env-var override above size silences warning" {
+    printf '%-100s\n' "filler" > "$BATS_TEST_TMPDIR/r.md"
+    # File is ~101 bytes. Set warn to 50 so file is above threshold.
+    APR_DOC_README_WARN_BYTES=50 apr_lib_validate_doc_size \
+        "$BATS_TEST_TMPDIR/r.md" "readme"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "doc_size: warn=0 disables the warning check" {
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/r.md" "readme" 0
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "doc_size: missing file is silently skipped (handled by documents_exist)" {
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/no-such-file.md" "readme"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "doc_size: details JSON carries path/role/bytes/thresholds" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    apr_lib_validate_doc_size "$BATS_TEST_TMPDIR/r.md" "spec" 100 0
+    local details="${_APR_VALIDATE_WARN_DETAILS[0]}"
+    python3 -c "
+import json
+d = json.loads('''$details''')
+assert d['role'] == 'spec'
+assert d['warn_threshold'] == 100
+assert d['fatal_threshold'] == 0
+assert d['bytes'] == 5
+assert d['path'].endswith('/r.md')
+"
+}
+
+@test "doc_size: strict mode promotes the warning to error via finalize_strict" {
+    printf 'tiny\n' > "$BATS_TEST_TMPDIR/r.md"
+    APR_FAIL_ON_WARN=1 apr_lib_validate_doc_size \
+        "$BATS_TEST_TMPDIR/r.md" "readme"
+    # First, the warning fires.
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+    # Then finalize_strict promotes.
+    APR_FAIL_ON_WARN=1 apr_lib_validate_finalize_strict
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+}
+
+# -----------------------------------------------------------------------------
+# doc_sizes (batch wrapper)
+# -----------------------------------------------------------------------------
+
+@test "doc_sizes: batch evaluates each triple" {
+    printf 'x\n'                 > "$BATS_TEST_TMPDIR/a.md"   # very tiny readme
+    printf '%-2000s\n' "ok"     > "$BATS_TEST_TMPDIR/b.md"   # large spec
+    printf 'tiny spec content\n' > "$BATS_TEST_TMPDIR/c.md"   # small spec
+    apr_lib_validate_doc_sizes \
+        "$BATS_TEST_TMPDIR/a.md|readme||" \
+        "$BATS_TEST_TMPDIR/b.md|spec||" \
+        "$BATS_TEST_TMPDIR/c.md|spec||"
+    # a.md (readme, ~2 bytes) -> warn; b.md (spec, large) -> ok;
+    # c.md (spec, ~19 bytes < 1024) -> warn.
+    [ "$(apr_lib_validate_warning_count)" = "2" ]
+}
+
+@test "doc_sizes: empty paths in batch are skipped" {
+    apr_lib_validate_doc_sizes "" "|readme||" "|||"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
