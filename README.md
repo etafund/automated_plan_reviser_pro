@@ -156,9 +156,165 @@ apr stats -w myspec  # Score ≥0.75 = approaching stability
 ## Reliability Features
 
 - Pre-flight validation before expensive Oracle runs
+- `apr lint` gate that refuses to invoke Oracle on broken workflows
 - Auto-retry with exponential backoff (10s → 30s → 90s)
+- Oracle busy classification + dedicated busy backoff (30s → 600s; 1800s budget)
 - Session locking prevents concurrent runs
-- Configurable via APR_MAX_RETRIES, APR_INITIAL_BACKOFF
+- Per-round provenance ledger (`.apr/rounds/<wf>/round_<N>.meta.json`)
+- Configurable via APR_MAX_RETRIES, APR_INITIAL_BACKOFF, APR_BUSY_MAX_WAIT
+
+## Hardening & Provenance (vNext)
+
+APR vNext makes it harder to waste an expensive Oracle run on broken inputs
+and easier to audit what actually happened.
+
+### Lint Gate
+
+`apr lint` runs the full validation pipeline without invoking Oracle. The
+same gate runs automatically before every `apr run` and `apr robot run`
+unless explicitly bypassed.
+
+- `apr lint` — human output on stderr with stable error codes
+- `apr robot lint` — JSON envelope with `code/message/hint/source/details`
+- `--no-lint` — explicit, noisy bypass (records `bypass` in ledger when wired)
+- `--fail-on-warn` / `APR_FAIL_ON_WARN=1` — treat warnings as fatal
+
+Categories the gate catches (see `lib/validate.sh`):
+- mustache placeholder leak (`{{README}}`) — historically the #1 way to burn a run
+- shell-style placeholders (`${VAR}`, `$VAR`) outside code fences
+- common "not filled" markers (`<REPLACE_ME>`, `<INSERT>`, `TODO:`, `TBD:`, `FIXME:`, `XXX:`)
+- empty / suspiciously-small required documents (per-role thresholds via `APR_DOC_<ROLE>_WARN_BYTES` / `APR_DOC_<ROLE>_FATAL_BYTES`)
+- secret patterns (`sk-…`, `ghp_…`, `xoxb-…`, `AKIA…`, Bearer tokens, PRIVATE KEY blocks)
+- unresolved APR directive residue (`[[APR:…]]` after templating)
+
+All findings are code-fence-aware (`APR_QC_RESPECT_CODE_FENCES=1`, default).
+Strict mode forces the fence check on so CI gates don't get bypassed by
+example blocks.
+
+### Prompt Manifest Preamble
+
+Every prompt assembled by `build_revision_prompt` now starts with an
+`[APR Manifest]` block listing every workflow document with its basename,
+byte size, sha256, and inclusion reason (required / impl_every_n / skipped).
+The manifest is byte-deterministic and serves as the model's binding to
+what it should be reading.
+
+Inspect without running:
+```bash
+apr run --dry-run --show-manifest      # prints manifest + would-run command
+apr run --dry-run --manifest-only      # prints only the manifest, exit 0
+apr robot render 3                      # JSON: {manifest_text, prompt_text, prompt_hash}
+```
+
+Opt out (rare; preserves the pre-vNext behavior byte-for-byte):
+```bash
+APR_NO_MANIFEST=1 apr run 3
+```
+
+### Safe Template Directives (opt-in)
+
+A workflow can opt into a small allowlisted directive language in its
+template body — `[[APR:FILE README.md]]`, `[[APR:SHA …]]`, `[[APR:SIZE …]]`,
+`[[APR:EXCERPT … <n>]]`, `[[APR:LIT …]]` — for power users who want
+deterministic file-inclusion semantics without the safety risks of
+mustache substitution.
+
+```yaml
+# .apr/workflows/<name>.yaml
+template_directives_enabled: true
+# template_directives:
+#   allow_traversal: false
+#   allow_absolute:  false
+template: |
+  Inline the spec exactly:
+  [[APR:FILE SPEC.md]]
+  sha256=[[APR:SHA SPEC.md]]
+```
+
+Path safety (absolute paths rejected; `..` traversal rejected; symlinks
+resolved before traversal check) is enforced by `lib/template.sh`.
+Post-expansion QC runs on the assembled prompt; any `[[APR:` residue is a
+fatal `prompt_qc_failed` error. See `docs/schemas/template-directives.md`.
+
+### Run Ledger
+
+Each round writes a per-round provenance record at
+`.apr/rounds/<wf>/round_<N>.meta.json` (schema:
+`docs/schemas/run-ledger.schema.json`, version `apr_run_ledger.v1`).
+Atomic via tmp-file + rename; secret patterns are redacted before
+persistence.
+
+The ledger captures: workflow / round / slug / run_id, started_at /
+finished_at / duration_ms, state machine (`started` →
+`finished|failed|canceled`), every input file's bytes + sha256 +
+inclusion_reason, the final `prompt_hash`, oracle engine/model/host/flags
+(sanitized), outcome (ok / code / exit_code / output_path), and
+execution counters (retries_count / busy_wait_count / busy_wait_total_ms).
+
+### Oracle Busy Handling
+
+When Oracle returns `ERROR: busy` (single-flight contention from another
+session), APR classifies the failure and routes it through a dedicated
+backoff loop separate from generic retries.
+
+Knobs:
+- `APR_BUSY_MAX_RETRIES` (default 10)
+- `APR_BUSY_INITIAL_BACKOFF` (default 30s)
+- `APR_BUSY_MAX_SLEEP` (default 600s, the per-iteration cap)
+- `APR_BUSY_MAX_WAIT` (default 1800s; 0 disables the total budget)
+- `APR_ROBOT_BUSY_POLICY=error|wait|enqueue` (robot-mode behavior)
+
+Robot mode emits a structured busy envelope on exhaustion with
+`code: "busy"`, `data.signature` (which bd-3pu detector matched), and
+optional `remote_host` / `retry_after_ms` / `queue_entry_id` /
+`elapsed_ms` fields. See `docs/schemas/robot-busy.md`.
+
+### Per-Workflow Queue
+
+Enqueue many rounds and let APR serialize them through Oracle's
+single-flight constraint without manual babysitting.
+
+```bash
+apr queue add 3                  # enqueue round 3 for default workflow
+apr queue add 4 --include-impl   # next round with impl bundled
+apr queue status                 # queued / running / recent
+apr queue run --until-empty      # drain the queue
+apr queue cancel <entry_id>      # non-destructive (audit trail preserved)
+```
+
+Queue state lives at `.apr/queue/<workflow>.events.jsonl` as an
+append-only event log. Schema:
+`docs/schemas/queue-events.{schema.json,md}`. Crash-tolerant via partial-
+line recovery; concurrent writers are serialized via flock (with mkdir
+fallback) on `.apr/.locks/queue.<workflow>.lock`.
+
+### Optional Redaction
+
+Belt-and-suspenders for accidentally-committed credentials. When
+`APR_REDACT=1` is set, `lib/redact.sh` substitutes high-confidence secret
+patterns with typed sentinels (`<<REDACTED:OPENAI_KEY>>`,
+`<<REDACTED:PRIVATE_KEY_BLOCK>>`, etc.) BEFORE the prompt leaves APR.
+The redacted prompt is what gets sent to Oracle, copied, and ledger'd.
+Per-run counts are tracked in `APR_REDACT_COUNT` and surfaced in
+metrics (`docs/schemas/metrics-schema.md`, `trust.redaction_count`).
+
+### ACK Policy (optional)
+
+When enabled, the prompt instructs the model to begin its response with
+an `ACK / END_ACK` block echoing the manifest hashes. APR parses the
+block, compares it to the recorded manifest, and surfaces three trust
+signals in metrics: `ack_present`, `ack_complete`, `ack_matches_manifest`.
+Mismatches imply the model likely ignored or mis-attributed an
+attachment. See `docs/schemas/run-ledger-schema.md` and `lib/ack.sh`.
+
+### Strict Mode
+
+`--fail-on-warn` (or `APR_FAIL_ON_WARN=1`) promotes every accumulated
+warning into a fatal error before the run begins. Useful for CI / robot
+orchestration where any low-trust signal should refuse to spend Oracle
+budget. Combines with all the above (lint findings, doc-size warnings,
+secret-scan, additional-placeholder markers) via the
+`apr_lib_validate_finalize_strict` promotion path.
 
 ## Options
 
@@ -171,6 +327,10 @@ apr stats -w myspec  # Score ≥0.75 = approaching stability
 --wait                Block until completion
 --login               Browser login (first time)
 --no-preflight        Skip validation
+--no-lint             Bypass run lint gate (explicit and noisy)
+--fail-on-warn        Treat lint warnings as errors (strict mode)
+--show-manifest       Print manifest alongside render/dry-run output
+--manifest-only       Print only the manifest, exit 0
 --hours NUM           Status window (default: 72)
 --compact             Minified JSON (robot mode)
 --json                JSON output for stats command
