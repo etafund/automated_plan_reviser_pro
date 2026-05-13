@@ -100,6 +100,7 @@ def command_env() -> dict[str, str]:
         {
             "NO_COLOR": "1",
             "APR_NO_GUM": "1",
+            "APR_V18_FORCE_FIXTURES": "1",
             "CI": "true",
         }
     )
@@ -110,15 +111,28 @@ def run_command_case(case: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     script = ROOT / case["script"]
     cmd = [sys.executable, str(script), *case.get("args", [])]
     WORKDIR.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(  # nosec B603 - command is built from fixed local corpus entries.
-        cmd,
-        cwd=WORKDIR,
-        env=command_env(),
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=30,
-    )
+    try:
+        completed = subprocess.run(  # nosec B603 - command is built from fixed local corpus entries.
+            cmd,
+            cwd=WORKDIR,
+            env=command_env(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "id": case["id"],
+            "kind": case["kind"],
+            "command": " ".join(cmd),
+            "exit_code": None,
+            "ok": None,
+            "status": "fail",
+            "stderr_empty": exc.stderr in (None, b"", ""),
+            "stdout_json": False,
+            "provider_result_validated": False,
+        }, [f"command timed out after {exc.timeout}s"]
 
     errors: list[str] = []
     if completed.returncode != case["expect_exit"]:
