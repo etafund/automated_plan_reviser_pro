@@ -1,0 +1,43 @@
+{
+  "access_path": "deepseek_official_api",
+  "api_base_url": "https://api.deepseek.com",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "bundle_version": "v18.0.0",
+  "chain_of_thought": "must never be persisted",
+  "evidence": null,
+  "evidence_id": null,
+  "model": "deepseek-v4-pro",
+  "official_api": true,
+  "prompt_manifest_sha256": "sha256:093f3be7d85d7aaf8ed855059c856c7837c93085d0a0aa1364c46fc73a9cac99",
+  "provider_family": "deepseek",
+  "provider_result_id": "provider-result-deepseek-raw-reasoning-invalid",
+  "provider_slot": "deepseek_v4_pro_reasoning_search",
+  "raw_hidden_reasoning": "must never be persisted",
+  "reasoning_config": {
+    "provider_nomenclature": "DeepSeek Chat Completions reasoning_effort",
+    "reasoning_effort": "max",
+    "thinking": {
+      "type": "enabled"
+    }
+  },
+  "reasoning_content": "must never be persisted",
+  "reasoning_content_policy": "persist_raw_reasoning",
+  "reasoning_content_stored": true,
+  "reasoning_content_transient_replay": true,
+  "reasoning_effort": "max",
+  "reasoning_effort_verified": true,
+  "result_path": ".apr/runs/mock/providers/deepseek_v4_pro_reasoning_search/output.md",
+  "result_text_sha256": "sha256:ab566f2d4b2cc57ab51fc3a7a39b7ec87e21ab3eb9f969d3b8e0a1408d27f1ca",
+  "schema_version": "provider_result.v1",
+  "search_enabled": true,
+  "search_mode": "tool_call_web_search",
+  "search_tool_name": "apr_web_search",
+  "search_trace_sha256": "sha256:2b3958b6cb5250f957cb4af30aa20e469f3bca576c95e7af82f28280cc7cd326",
+  "source_baseline_sha256": "sha256:1d81e0a38f1f038db7f7296237063b644d1962ac51064a3eda218318efdb8a84",
+  "status": "success",
+  "synthesis_eligible": true,
+  "thinking": {
+    "type": "enabled"
+  },
+  "thinking_enabled": true
+}

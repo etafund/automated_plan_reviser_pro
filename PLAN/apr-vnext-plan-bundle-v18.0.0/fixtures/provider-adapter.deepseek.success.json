@@ -1,0 +1,64 @@
+{
+  "access_path": "deepseek_official_api",
+  "adapter_log": {
+    "duration_ms": 42,
+    "redaction_verdict": "no_raw_reasoning_or_secret_material_persisted",
+    "request_sha256": "sha256:0f5412ab15ccc3ac4e1837cb87829989ef8d645aa53ec6b064507c01c8d781f5",
+    "response_sha256": "sha256:8c9c3ad4d6cd823f8c184ee31de761a764f4763cc76e841cb887925270cd72a4",
+    "retry_policy": "retry_rate_limit_and_transient_5xx"
+  },
+  "api_base_url": "https://api.deepseek.com",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "bundle_version": "v18.0.0",
+  "citation_count": 1,
+  "citations": [
+    {
+      "retrieved_at": "2026-05-12T12:00:00Z",
+      "title": "DeepSeek API docs snapshot",
+      "trust_label": "provider_docs_snapshot",
+      "url": "https://api-docs.deepseek.com/"
+    }
+  ],
+  "evidence": null,
+  "evidence_id": null,
+  "model": "deepseek-v4-pro",
+  "official_api": true,
+  "prompt_manifest_sha256": "sha256:093f3be7d85d7aaf8ed855059c856c7837c93085d0a0aa1364c46fc73a9cac99",
+  "provider_family": "deepseek",
+  "provider_result_id": "provider-result-deepseek_v4_pro_reasoning_search-success",
+  "provider_slot": "deepseek_v4_pro_reasoning_search",
+  "reasoning_config": {
+    "provider_nomenclature": "DeepSeek Chat Completions reasoning_effort",
+    "reasoning_effort": "max",
+    "thinking": {
+      "type": "enabled"
+    }
+  },
+  "reasoning_content_policy": "transient_tool_replay_hash_only_persisted",
+  "reasoning_content_sha256": "sha256:0d209c43a7025fa7edc86e68efe36a807e053134bb0b24c40e8538c764dc9c0b",
+  "reasoning_content_stored": false,
+  "reasoning_content_transient_replay": true,
+  "reasoning_effort": "max",
+  "reasoning_effort_verified": true,
+  "redaction_actions": [
+    "api_key_env_redacted",
+    "request_hash_recorded",
+    "response_hash_recorded"
+  ],
+  "result_path": ".apr/runs/mock/providers/deepseek_v4_pro_reasoning_search/output.md",
+  "result_text_sha256": "sha256:ab566f2d4b2cc57ab51fc3a7a39b7ec87e21ab3eb9f969d3b8e0a1408d27f1ca",
+  "schema_version": "provider_result.v1",
+  "search_enabled": true,
+  "search_mode": "tool_call_web_search",
+  "search_result_count": 3,
+  "search_tool_name": "apr_web_search",
+  "search_trace_sha256": "sha256:2b3958b6cb5250f957cb4af30aa20e469f3bca576c95e7af82f28280cc7cd326",
+  "source_baseline_sha256": "sha256:1d81e0a38f1f038db7f7296237063b644d1962ac51064a3eda218318efdb8a84",
+  "status": "success",
+  "synthesis_eligible": true,
+  "thinking": {
+    "type": "enabled"
+  },
+  "thinking_enabled": true,
+  "tool_call_replay_policy": "transient_reasoning_content_replay_only"
+}

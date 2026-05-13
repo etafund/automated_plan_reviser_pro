@@ -1,0 +1,38 @@
+{
+  "access_path": "xai_api",
+  "adapter_log": {
+    "duration_ms": 42,
+    "redaction_verdict": "no_raw_reasoning_or_secret_material_persisted",
+    "request_sha256": "sha256:e258622f0e38dd45f6b4911f89867c92633502789c122e63107cc90fcfae6171",
+    "response_sha256": "sha256:4e5686f3abf95e607e0c2bdf284a0158bf02d5a951c9f6ebb6343cba851bf5c3",
+    "retry_policy": "retry_rate_limit_and_transient_5xx"
+  },
+  "api_base_url": "https://api.x.ai/v1",
+  "api_key_env": "XAI_API_KEY",
+  "bundle_version": "v18.0.0",
+  "evidence": null,
+  "evidence_id": null,
+  "model": "grok-4.3",
+  "official_api": true,
+  "prompt_manifest_sha256": "sha256:093f3be7d85d7aaf8ed855059c856c7837c93085d0a0aa1364c46fc73a9cac99",
+  "provider_family": "xai_grok",
+  "provider_result_id": "provider-result-xai_grok_reasoning-success",
+  "provider_slot": "xai_grok_reasoning",
+  "reasoning_config": {
+    "provider_nomenclature": "xAI Chat Completions reasoning_effort",
+    "reasoning_effort": "high"
+  },
+  "reasoning_effort": "high",
+  "reasoning_effort_verified": true,
+  "redaction_actions": [
+    "api_key_env_redacted",
+    "request_hash_recorded",
+    "response_hash_recorded"
+  ],
+  "result_path": ".apr/runs/mock/providers/xai_grok_reasoning/output.md",
+  "result_text_sha256": "sha256:9119360a32c7ab0d4a740b65af37f20879276b46b74839c5b565284bbd24103b",
+  "schema_version": "provider_result.v1",
+  "source_baseline_sha256": "sha256:1d81e0a38f1f038db7f7296237063b644d1962ac51064a3eda218318efdb8a84",
+  "status": "success",
+  "synthesis_eligible": true
+}
