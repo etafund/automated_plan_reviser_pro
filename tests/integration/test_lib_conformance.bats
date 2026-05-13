@@ -177,12 +177,10 @@ EXEMPT_FROM_GUARD=(errors ui)
 # C3 — Load topology: apr_source_optional_libs's list
 # ===========================================================================
 #
-# Today: apr_source_optional_libs sources 8 of the 14 libs directly.
-# The other 6 are sourced transitively by libs in the load list (e.g.,
-# manifest.sh is sourced by template.sh and ledger.sh; size.sh by
-# validate.sh; etc.). Pin the CURRENT topology so a refactor surfaces.
+# Today: apr_source_optional_libs sources all runtime libs directly. Pin the
+# CURRENT topology so a refactor surfaces.
 
-DIRECTLY_LOADED_BY_APR=(errors ui manifest busy queue template validate ledger)
+DIRECTLY_LOADED_BY_APR=(errors ui manifest cache size redact busy busy_wait queue template validate ack files_report ledger)
 
 @test "C3: apr_source_optional_libs's load list matches the documented set" {
     local actual
@@ -208,18 +206,9 @@ DIRECTLY_LOADED_BY_APR=(errors ui manifest busy queue template validate ledger)
     done < <(apr_loaded_libs)
 }
 
-# Known orphans tracked by automated_plan_reviser_pro-4dxz. These libs
-# ship public functions and have unit tests, but no other lib sources
-# them and apr doesn't reference their apr_lib_*_* functions yet.
-# They're presumably staged ahead of the feature beads (bd-25s queue,
-# bd-6rw metrics, etc.) that will consume them. Pin the current state
-# so a NEW orphan that lands without a tracking bead surfaces here.
-KNOWN_ORPHANS=(ack busy_wait cache files_report size)
-
-@test "C3: every lib/*.sh is reachable — either directly loaded by apr OR transitively sourced (or a known-orphan)" {
+@test "C3: every lib/*.sh is reachable — either directly loaded by apr OR transitively sourced" {
     # For libs NOT in DIRECTLY_LOADED_BY_APR, assert that at least one
-    # of the directly-loaded libs sources them. Known-orphan libs are
-    # exempted via the KNOWN_ORPHANS list and tracked separately.
+    # of the directly-loaded libs sources them.
     local module
     local new_orphans=()
     while IFS= read -r module; do
@@ -229,12 +218,6 @@ KNOWN_ORPHANS=(ack busy_wait cache files_report size)
             [[ "$d" == "$module" ]] && direct=1
         done
         if [[ "$direct" -eq 1 ]]; then continue; fi
-
-        local exempt=0
-        for d in "${KNOWN_ORPHANS[@]}"; do
-            [[ "$d" == "$module" ]] && exempt=1
-        done
-        if [[ "$exempt" -eq 1 ]]; then continue; fi
 
         local found=0
         for d in "${DIRECTLY_LOADED_BY_APR[@]}"; do
@@ -250,11 +233,10 @@ KNOWN_ORPHANS=(ack busy_wait cache files_report size)
     done < <(lib_modules)
 
     if (( ${#new_orphans[@]} > 0 )); then
-        echo "NEW orphan libs (not directly loaded AND not transitively sourced):" >&2
+        echo "orphan libs (not directly loaded AND not transitively sourced):" >&2
         printf '  %s\n' "${new_orphans[@]}" >&2
         echo "Either wire them into apr_source_optional_libs's load list," >&2
-        echo "have a directly-loaded lib source them, OR file a tracking bead" >&2
-        echo "and add to KNOWN_ORPHANS in this test file." >&2
+        echo "or have a directly-loaded lib source them." >&2
         return 1
     fi
 }
