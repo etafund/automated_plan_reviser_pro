@@ -438,6 +438,36 @@ apr_lib_validate_additional_placeholders() {
                 "$details"
         fi
     fi
+
+    # Shell-style placeholders (bd-64dh): ${VAR} (braced) and $VAR
+    # (unbraced). The braced form is unambiguous; the unbraced form
+    # carries a small false-positive risk in genuine shell snippets, so
+    # we exclude the well-known special parameters $1..$9, $@, $*, $#,
+    # $?, $$, $0, $! (which are almost always shell positionals, not
+    # template placeholders). All matches respect code fences when
+    # APR_QC_RESPECT_CODE_FENCES=1 (default).
+    #
+    # Patterns:
+    #   braced:   \$\{[A-Za-z_][A-Za-z0-9_]*\}        (e.g. ${README}, ${MY_VAR})
+    #   unbraced: \$[A-Za-z_][A-Za-z0-9_]*            (e.g. $README, $MY_VAR)
+    local shell_pattern='\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*'
+    if printf '%s' "$prompt" | grep -Eq "$shell_pattern"; then
+        local hits
+        hits=$(_apr_validate_qc_hits "$prompt" "$label" "$shell_pattern" "$respect_fences")
+        if [[ -n "$hits" ]]; then
+            local hits_json
+            hits_json=$(_apr_validate_lines_to_json "$hits")
+            local details
+            details=$(printf '{"label":"%s","class":"shell_var","hits":%s}' \
+                "$(_apr_validate_json_escape "$label")" "$hits_json")
+            apr_lib_validate_add_warning \
+                "prompt_qc_placeholder_marker" \
+                "Prompt contains shell-style placeholder ('\${VAR}' or '\$VAR') outside code fences." \
+                "Either expand the placeholder, move the example inside a \`\`\` fence, or set APR_QC_RESPECT_CODE_FENCES=0 to also check fenced examples. Shell special params (\$1, \$@, \$#, \$?, \$\$, \$0, \$!) are intentionally not flagged." \
+                "$source" \
+                "$details"
+        fi
+    fi
 }
 
 # -----------------------------------------------------------------------------

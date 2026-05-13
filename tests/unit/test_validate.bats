@@ -399,3 +399,69 @@ assert len(d['hits']) >= 1
     # Errors: original + 1 promoted warning = 2.
     [ "$(apr_lib_validate_error_count)" = "2" ]
 }
+
+# =============================================================================
+# bd-64dh: shell-style placeholder detection
+# =============================================================================
+
+@test "additional_placeholders bd-64dh: \${VAR} braced form -> warning" {
+    apr_lib_validate_additional_placeholders "Inline \${README} here" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [ "${_APR_VALIDATE_WARN_CODE[0]}" = "prompt_qc_placeholder_marker" ]
+    [[ "${_APR_VALIDATE_WARN_DETAILS[0]}" == *"shell_var"* ]]
+}
+
+@test "additional_placeholders bd-64dh: \$VAR unbraced form -> warning" {
+    apr_lib_validate_additional_placeholders "Inline \$MYVAR here" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [[ "${_APR_VALIDATE_WARN_DETAILS[0]}" == *"shell_var"* ]]
+}
+
+@test "additional_placeholders bd-64dh: shell special params NOT flagged" {
+    apr_lib_validate_additional_placeholders \
+        "use \$1 args \$@ count \$# pid \$\$ rc \$? name \$0 status \$!" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders bd-64dh: \$VAR inside code fence ignored by default" {
+    local input
+    input=$'doc text\n```\necho ${X} and $Y\n```\nmore text'
+    apr_lib_validate_additional_placeholders "$input" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders bd-64dh: APR_QC_RESPECT_CODE_FENCES=0 flags fenced \$VAR" {
+    local input
+    input=$'```\necho ${X}\n```'
+    APR_QC_RESPECT_CODE_FENCES=0 apr_lib_validate_additional_placeholders "$input" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+}
+
+@test "additional_placeholders bd-64dh: strict mode promotes shell-var warning to error" {
+    APR_FAIL_ON_WARN=1 apr_lib_validate_additional_placeholders "Inline \${README} here" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    APR_FAIL_ON_WARN=1 apr_lib_validate_finalize_strict
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+}
+
+@test "additional_placeholders bd-64dh: details JSON has hits + class=shell_var" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    apr_lib_validate_additional_placeholders "Use \${X} here" "tpl"
+    local details="${_APR_VALIDATE_WARN_DETAILS[0]}"
+    python3 -c "
+import json
+d = json.loads('''$details''')
+assert d['class'] == 'shell_var'
+assert isinstance(d['hits'], list)
+assert len(d['hits']) >= 1
+"
+}
+
+@test "additional_placeholders bd-64dh: digit-only \$1..\$9 not flagged even at line start" {
+    local input
+    input=$'echo $1 here\nand $9 there'
+    apr_lib_validate_additional_placeholders "$input" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
