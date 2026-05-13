@@ -15,12 +15,13 @@ teardown() {
     teardown_test_environment
 }
 
-@test "Replay from provider result fixture" {
+@test "Replay from provider result fixture fails closed when normalization is mocked" {
     local fixture="${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/fixtures/provider-result.chatgpt.json"
     run python3 "$SCRIPT_PATH" --input "$fixture" --json
-    assert_success
-    assert_output --partial '"stage": "normalization"'
-    assert_output --partial '"stage": "eval"'
+    assert_failure
+    assert_output --partial '"ok": false'
+    assert_output --partial 'replay_failed'
+    assert_output --partial 'mocked_enrichment_not_export_ready'
 }
 
 @test "Replay from run directory" {
@@ -39,7 +40,7 @@ teardown() {
 
 @test "Fail on missing input" {
     run python3 "$SCRIPT_PATH" --input "non-existent" --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'replay_failed'
 }

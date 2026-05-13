@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 # Bundle version: v18.0.0
-import argparse, json, sys, logging, time
+import argparse
+import json
+import logging
+import os
+import sys
+import time
 from pathlib import Path
 
 VERSION = 'v18.0.0'
+MOCKED_ENRICHMENT_WARNING_ID = 'WARN-MOCKED-ENRICHMENT'
+FIXTURE_ENRICHMENT_WARNING_ID = 'WARN-FIXTURE-ENRICHMENT'
 
 def env(ok=True, data=None, warnings=None, errors=None, next_command=None, fix_command=None, blocked_reason=None):
     return {
@@ -59,8 +66,42 @@ def normalize_to_full(minimal_ir):
     artifact['test_matrix'] = []
     
     # Normally we would parse markdown here. Since we lack markdown, we mock the extraction.
-    warnings.append({'provider_result_id': artifact.get('source_provider_slot', 'unknown'), 'reason': 'Content not parsed, enrichment is mocked', 'warning_id': 'WARN-MOCKED-ENRICHMENT'})
+    warnings.append({'provider_result_id': artifact.get('source_provider_slot', 'unknown'), 'reason': 'Content not parsed, enrichment is mocked', 'warning_id': MOCKED_ENRICHMENT_WARNING_ID})
     return artifact, warnings
+
+def normalize_to_fixture_artifact(provider_result, result_id, stage):
+    fixture_path = Path(__file__).resolve().parents[1] / 'fixtures' / 'plan-artifact.json'
+    with open(fixture_path, 'r', encoding='utf-8') as f:
+        artifact = json.load(f)
+
+    provider_slot = provider_result.get('provider_slot', 'unknown')
+    text_sha = provider_result.get('result_text_sha256')
+    evidence_id = provider_result.get('evidence_id')
+    artifact['plan_id'] = f"{result_id}-fixture-plan"
+    artifact['stage'] = 'full_plan_ir' if stage == 'full' else 'bead_export_ready'
+    artifact['source_provider_slot'] = provider_slot
+    artifact['source_baseline_sha256'] = provider_result.get('source_baseline_sha256')
+    artifact['provider_result_refs'] = [
+        {
+            'provider_result_id': result_id,
+            'provider_slot': provider_slot,
+            'result_text_sha256': text_sha,
+        }
+    ]
+    if evidence_id:
+        artifact['evidence_refs'] = [{'evidence_id': evidence_id}]
+
+    warnings = [
+        {
+            'provider_result_id': result_id,
+            'reason': 'APR_V18_FORCE_FIXTURES=1 selected fixture-backed Plan IR enrichment',
+            'warning_id': FIXTURE_ENRICHMENT_WARNING_ID,
+        }
+    ]
+    return artifact, warnings
+
+def has_warning(warnings, warning_id):
+    return any(warning.get('warning_id') == warning_id for warning in warnings if isinstance(warning, dict))
 
 def normalize_to_export_ready(full_ir):
     # Validate bead-export readiness: every task has title, type, priority suggestion, body, dependencies, and test/verification notes.
@@ -104,6 +145,9 @@ def main():
         
         if args.stage == 'minimal':
             data = minimal_ir
+        elif os.environ.get('APR_V18_FORCE_FIXTURES') == '1':
+            data, fw = normalize_to_fixture_artifact(provider_result, result_id, args.stage)
+            warnings.extend(fw)
         elif args.stage == 'full':
             full_ir, fw = normalize_to_full(minimal_ir)
             warnings.extend(fw)
@@ -115,6 +159,12 @@ def main():
             warnings.extend(ew)
             data = export_ir
             
+        if has_warning(warnings, MOCKED_ENRICHMENT_WARNING_ID):
+            errors.append({
+                'error_code': 'mocked_enrichment_not_export_ready',
+                'message': 'Plan IR full/export enrichment is not implemented; refusing to emit a successful empty artifact',
+            })
+
         item_count = len(data.get('plan_items', []))
         logging.info(f"Normalization complete. Result ID: {result_id}, Input Hash: {input_hash}, Stage: {args.stage}, Items: {item_count}, Warnings: {len(warnings)}")
             
@@ -127,7 +177,7 @@ def main():
         data=data,
         warnings=warnings,
         errors=errors,
-        blocked_reason='normalization_error' if errors else None
+        blocked_reason='mocked_enrichment_not_export_ready' if has_warning(warnings, MOCKED_ENRICHMENT_WARNING_ID) else ('normalization_error' if errors else None)
     )
     
     if args.json:
