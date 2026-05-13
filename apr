@@ -5572,10 +5572,30 @@ show_status() {
 
 attach_session() {
     local session="$1"
+    local layout oracle_rc=0
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
     print_banner
-    print_info "Attaching to session: $session"
+
+    if [[ "$layout" == "compact" ]]; then
+        print_header "ATTACH"
+        print_info "Session: $session"
+    else
+        print_header "ATTACH SESSION"
+        print_info "Session slug: $session"
+        print_info "State: querying Oracle"
+    fi
+    apr_ui_cta "Find sessions" "apr status --hours ${STATUS_HOURS:-72}" "Use this if Oracle reports that the slug is missing"
     echo "" >&2
-    "${ORACLE_CMD[@]}" session "$session" --render
+    "${ORACLE_CMD[@]}" session "$session" --render || oracle_rc=$?
+
+    if (( oracle_rc != 0 )); then
+        print_error "Oracle could not render session: $session"
+        print_info "Run 'apr status --hours ${STATUS_HOURS:-72}' to confirm the session slug, then retry 'apr attach <session>'"
+        exit "$oracle_rc"
+    fi
+
+    print_success "Session render complete"
 }
 
 # -----------------------------------------------------------------------------
