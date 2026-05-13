@@ -276,20 +276,20 @@ apr_ui_symbol() {
     fi
 
     case "$token:$unicode" in
-        success:true) printf '✓' ;;
-        success:false) printf '[ok]' ;;
-        error:true) printf '✗' ;;
-        error:false) printf '[error]' ;;
-        warning:true) printf '⚠' ;;
-        warning:false) printf '[warn]' ;;
-        info:true) printf 'ℹ' ;;
-        info:false) printf '[info]' ;;
-        arrow:true) printf '→' ;;
-        arrow:false) printf '->' ;;
-        rule:true) printf '━' ;;
-        rule:false) printf '=' ;;
-        light_rule:true) printf '─' ;;
-        light_rule:false) printf '-' ;;
+        success:true) printf '%s' '✓' ;;
+        success:false) printf '%s' '[ok]' ;;
+        error:true) printf '%s' '✗' ;;
+        error:false) printf '%s' '[error]' ;;
+        warning:true) printf '%s' '⚠' ;;
+        warning:false) printf '%s' '[warn]' ;;
+        info:true) printf '%s' 'ℹ' ;;
+        info:false) printf '%s' '[info]' ;;
+        arrow:true) printf '%s' '→' ;;
+        arrow:false) printf '%s' '->' ;;
+        rule:true) printf '%s' '━' ;;
+        rule:false) printf '%s' '=' ;;
+        light_rule:true) printf '%s' '─' ;;
+        light_rule:false) printf '%s' '-' ;;
         *) printf '%s' "$token" ;;
     esac
 }
