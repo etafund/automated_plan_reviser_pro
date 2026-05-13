@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.2.0",
+  "workflow": "default",
+  "created_at": "2026-05-12T19:14:00Z",
+  "updated_at": "2026-05-12T19:58:33Z",
+  "rounds": [
+    {
+      "round": 4,
+      "timestamp": "2026-05-12T19:58:33Z",
+      "documents": {
+        "readme": {
+          "path": "README.md",
+          "char_count": 5420,
+          "word_count": 892,
+          "line_count": 145
+        },
+        "spec": {
+          "path": "SPEC.md",
+          "char_count": 14820,
+          "word_count": 2331,
+          "line_count": 412
+        },
+        "implementation": null
+      },
+      "output": {
+        "path": ".apr/rounds/default/round_4.md",
+        "char_count": 8500,
+        "word_count": 1400,
+        "line_count": 180
+      },
+      "changes_from_previous": null,
+      "trust": {
+        "manifest_present": true,
+        "manifest_hash": "f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a09",
+        "prompt_hash": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+        "ack_present": true,
+        "ack_complete": true,
+        "ack_matches_manifest": true,
+        "files_report_supported": true,
+        "files_report_ok": true,
+        "files_report_mismatch": null,
+        "ledger_present": true,
+        "ledger_schema_version": "apr_run_ledger.v1",
+        "secret_detected_count": 0,
+        "redaction_count": 0,
+        "low_trust": false
+      },
+      "execution": {
+        "busy_wait_events": 3,
+        "busy_wait_total_ms": 215000,
+        "retry_attempts": 1,
+        "retry_exit_codes": [2],
+        "queue_run_id": "01HXQ3K8QUEUE12345678901XY",
+        "queued_at": "2026-05-12T19:14:00Z",
+        "started_at": "2026-05-12T19:14:18Z",
+        "completed_at": "2026-05-12T19:58:33Z",
+        "duration_ms": 2655000,
+        "outcome_class": "success",
+        "degraded_runtime": true
+      }
+    }
+  ],
+  "convergence": {
+    "detected": false,
+    "confidence": 0.4,
+    "estimated_rounds_remaining": 6,
+    "signals": {
+      "output_size_trend": "stable",
+      "change_velocity": "decreasing",
+      "similarity_trend": "increasing"
+    }
+  }
+}

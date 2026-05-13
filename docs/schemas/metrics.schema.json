@@ -9,8 +9,8 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "enum": ["1.0.0", "1.1.0"],
-      "description": "Stable identifier. 1.0.0 == fzi.1 (initial); 1.1.0 adds trust[] per round (bd-2ic)."
+      "enum": ["1.0.0", "1.1.0", "1.2.0"],
+      "description": "Stable identifier. 1.0.0 == fzi.1 (initial); 1.1.0 adds trust[] per round (bd-2ic); 1.2.0 adds execution[] per round (bd-6rw)."
     },
     "workflow": {
       "type": "string",
@@ -153,6 +153,78 @@
             "low_trust": {
               "type": "boolean",
               "description": "Derived flag, true iff ANY of: manifest_present==false, ack_present==false, ack_matches_manifest==false, files_report_ok==false, ledger_present==false. Consumers can branch on this single field for dashboard rendering."
+            }
+          }
+        },
+        "execution": {
+          "description": "bd-6rw execution-signals block (schema_version >= 1.2.0). Surfaces busy/retry/queue dynamics so apr stats can flag rounds whose CORRECTNESS is fine but whose RUNTIME was unhealthy.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "busy_wait_events": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of times oracle busy was detected and waited (bd-3pu). Mirrors execution.busy_wait_count from the run ledger (bd-246)."
+            },
+            "busy_wait_total_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cumulative milliseconds spent in busy backoff (bd-3du). Mirrors the ledger field. Useful as a single integer to bucket runs into healthy / degraded / pathological."
+            },
+            "retry_attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of full oracle-invocation retries within this run_id (non-busy retries via the generic backoff). Mirrors execution.retries_count from the run ledger."
+            },
+            "retry_exit_codes": {
+              "type": "array",
+              "items": { "type": "integer" },
+              "description": "Oracle exit codes from EACH retry attempt, in attempt order. Useful for classifying retry storms (all `2` -> oracle_error; mixed -> network glitches)."
+            },
+            "queue_run_id": {
+              "type": ["string", "null"],
+              "description": "queue entry_id if this round was dispatched via `apr queue run` (bd-3fn). Null when the round was an interactive `apr run`."
+            },
+            "queued_at": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Wall-clock when the entry was enqueued. Null for non-queued rounds."
+            },
+            "started_at": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Wall-clock when oracle invocation began (mirrors run ledger started_at)."
+            },
+            "completed_at": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Wall-clock when the round reached its terminal state (mirrors run ledger finished_at)."
+            },
+            "duration_ms": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Wall-clock duration in milliseconds (mirrors run ledger duration_ms)."
+            },
+            "outcome_class": {
+              "type": "string",
+              "enum": [
+                "success",
+                "busy_timeout",
+                "oracle_error",
+                "network_error",
+                "validation_failed",
+                "prompt_qc_failed",
+                "template_engine_error",
+                "config_error",
+                "canceled",
+                "internal_error",
+                "unknown"
+              ],
+              "description": "Coarse outcome classification aligned with the error taxonomy (bd-3tj). Derived from the run ledger's outcome.code (or from the queue event log when no ledger exists). `unknown` is the default when neither source is available."
+            },
+            "degraded_runtime": {
+              "type": "boolean",
+              "description": "Derived flag, true iff ANY of: busy_wait_events > 0 AND busy_wait_total_ms > APR_DEGRADED_BUSY_MS_THRESHOLD (default 60000), retry_attempts > 0, outcome_class IN {busy_timeout, oracle_error, network_error}. Consumers can branch on this single field for dashboard rendering (separate from `trust.low_trust`)."
             }
           }
         }

@@ -11,11 +11,12 @@ in [`tests/fixtures/metrics/`](../../tests/fixtures/metrics/).
 |---|---|---|
 | `1.0.0` | original (fzi.1) | Doc/output/diff metrics + convergence signals. |
 | `1.1.0` | bd-2ic | Adds optional per-round `trust` object (manifest hash, ACK status, files-report, ledger presence, redaction/secret counts). |
+| `1.2.0` | bd-6rw | Adds optional per-round `execution` object (busy waits, retries, queue metadata, outcome class, degraded_runtime). |
 
-The bump from 1.0.0 to 1.1.0 is **non-breaking** — every 1.1.0 reader
-gracefully handles 1.0.0 files (no `trust` field), and every 1.0.0
-reader ignores the new `trust` field. Writers stamp `1.1.0` when they
-emit any trust signal.
+All bumps are **non-breaking** — every new-version reader gracefully
+handles older files (missing block), and every old-version reader
+ignores the new field. Writers stamp the highest version they actively
+emit signals for.
 
 ## Where the file lives
 
@@ -120,6 +121,55 @@ Note that `null` signals never trip `low_trust` — the renderer should
 display "unknown" rather than "low trust" when the underlying
 detection didn't run.
 
+## Execution signals (bd-6rw, schema_version >= 1.2.0)
+
+The `execution` object surfaces runtime/orchestration signals so
+operators can spot rounds whose CORRECTNESS is fine but whose RUNTIME
+was unhealthy (lots of busy waits, retry storms, queue timeouts).
+
+| Field | Type | Source | Meaning |
+|---|---|---|---|
+| `busy_wait_events` | int | run ledger (bd-246) | How many times oracle busy was detected. |
+| `busy_wait_total_ms` | int | run ledger | Cumulative ms spent in busy backoff. |
+| `retry_attempts` | int | run ledger | Non-busy retry count. |
+| `retry_exit_codes` | int[] | apr run_oracle_with_retry | Oracle exit codes for each retry, in attempt order. |
+| `queue_run_id` | string \| null | queue event log | entry_id when dispatched via `apr queue run`. |
+| `queued_at` | date-time \| null | queue event log | Wall-clock at enqueue time. |
+| `started_at` | date-time \| null | run ledger | Mirrors ledger started_at. |
+| `completed_at` | date-time \| null | run ledger | Mirrors ledger finished_at. |
+| `duration_ms` | int \| null | run ledger | Mirrors ledger duration_ms. |
+| `outcome_class` | enum | derived from ledger.outcome.code | Coarse classification (success / busy_timeout / oracle_error / …). |
+| `degraded_runtime` | bool | derived | `true` iff retries fired OR busy waits exceeded threshold OR outcome_class is degraded. |
+
+### `degraded_runtime` derivation
+
+```
+degraded_runtime = retry_attempts > 0
+                OR (busy_wait_events > 0 AND busy_wait_total_ms > APR_DEGRADED_BUSY_MS_THRESHOLD)
+                OR outcome_class IN {busy_timeout, oracle_error, network_error}
+```
+
+Default threshold `APR_DEGRADED_BUSY_MS_THRESHOLD = 60000` (60s). Tune
+via env var. `degraded_runtime` is INDEPENDENT of `trust.low_trust`:
+the latter flags "we don't know what the model saw"; the former flags
+"the run was bumpy even if the model saw the right inputs."
+
+### `outcome_class` mapping (from run ledger `outcome.code`)
+
+| Ledger code | outcome_class |
+|---|---|
+| `ok` | `success` |
+| `busy` | `busy_timeout` |
+| `oracle_error` | `oracle_error` |
+| `network_error` | `network_error` |
+| `validation_failed` | `validation_failed` |
+| `prompt_qc_failed` | `prompt_qc_failed` |
+| `template_engine_error` | `template_engine_error` |
+| `config_error` | `config_error` |
+| `canceled` | `canceled` |
+| `internal_error` | `internal_error` |
+| anything else / null | `unknown` |
+
 ## Examples
 
 | File | Scenario |
@@ -127,6 +177,7 @@ detection didn't run.
 | [`tests/fixtures/metrics/clean-round.json`](../../tests/fixtures/metrics/clean-round.json) | 1.1.0 with full trust (all booleans true, `low_trust=false`). |
 | [`tests/fixtures/metrics/low-trust-round.json`](../../tests/fixtures/metrics/low-trust-round.json) | 1.1.0 where `ack_matches_manifest=false` and `files_report_mismatch` carries the diff. |
 | [`tests/fixtures/metrics/legacy-1.0.0.json`](../../tests/fixtures/metrics/legacy-1.0.0.json) | 1.0.0 (pre-bd-2ic) with no `trust` block — readers MUST still parse cleanly. |
+| [`tests/fixtures/metrics/degraded-runtime-round.json`](../../tests/fixtures/metrics/degraded-runtime-round.json) | 1.2.0 — clean trust but execution block flags `degraded_runtime=true` from 3 busy waits + 1 retry. |
 
 ## Writer-side checklist (follow-on)
 
