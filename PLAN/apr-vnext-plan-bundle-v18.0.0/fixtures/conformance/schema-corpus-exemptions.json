@@ -1,0 +1,31 @@
+{
+  "bundle_version": "v18.0.0",
+  "exemptions": [
+    {
+      "fixture": "fixtures/intake-capture-manifest.json",
+      "reason": "Intake capture is an implementation manifest artifact rather than a standalone v18 contract schema.",
+      "schema_version": "intake_capture_manifest.v1"
+    },
+    {
+      "fixture": "fixtures/log-bundle.json",
+      "reason": "Log bundle shape is a test/logging artifact owned by the harness layer rather than the contract substrate.",
+      "schema_version": "log_bundle.v1"
+    },
+    {
+      "fixture": "fixtures/route-compiler.capabilities.json",
+      "reason": "Route compiler capabilities are an input corpus for route tests; provider capability schemas cover provider capability artifacts.",
+      "schema_version": "route_compiler_capabilities.v1"
+    },
+    {
+      "fixture": "fixtures/synthesis-finalization.json",
+      "reason": "Synthesis finalization is enforced by the synthesis-finalization checker and traceability/artifact contracts.",
+      "schema_version": "synthesis_finalization.v1"
+    },
+    {
+      "fixture": "fixtures/negative/synthesis-missing-traceability.invalid.json",
+      "reason": "Negative synthesis-finalization fixture is owned by the synthesis-finalization checker, not Draft 2020-12 schema validation.",
+      "schema_version": "synthesis_finalization.v1"
+    }
+  ],
+  "schema_version": "schema_corpus_exemptions.v1"
+}
