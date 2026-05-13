@@ -1,0 +1,102 @@
+{
+  "code": "ok",
+  "data": {
+    "commands": {
+      "diff": "Compare rounds (apr robot diff <N> [M])",
+      "help": "This help",
+      "history": "List revision rounds for workflow",
+      "init": "Initialize .apr directory",
+      "integrate": "Get Claude integration prompt (apr robot integrate <round>)",
+      "lint": "Validate workflow, documents, and prompt templates without invoking Oracle",
+      "render": "Preview manifest + prompt for a round without invoking Oracle (apr robot render <round>; --manifest-only for manifest alone)",
+      "run": "Execute revision round (apr robot run <round>)",
+      "show": "View round content (apr robot show <round>)",
+      "stats": "Show analytics metrics summary",
+      "status": "System overview (config, workflows, oracle)",
+      "validate": "Pre-run validation (apr robot validate <round>)",
+      "workflows": "List all workflows with descriptions"
+    },
+    "description": "Robot mode for coding agents - JSON interface to APR",
+    "error_codes": {
+      "attachment_mismatch": {
+        "exit_code": 4,
+        "meaning": "Attachment or file manifest mismatch"
+      },
+      "busy": {
+        "exit_code": 12,
+        "meaning": "Single-flight lock or busy state blocks this operation"
+      },
+      "config_error": {
+        "exit_code": 4,
+        "meaning": "Workflow/config/filesystem configuration problem"
+      },
+      "dependency_missing": {
+        "exit_code": 3,
+        "meaning": "Required local dependency is unavailable"
+      },
+      "internal_error": {
+        "exit_code": 1,
+        "meaning": "Unexpected APR bug or unknown state"
+      },
+      "network_error": {
+        "exit_code": 10,
+        "meaning": "Remote/network operation failed"
+      },
+      "not_configured": {
+        "exit_code": 4,
+        "meaning": "APR project is not initialized"
+      },
+      "not_implemented": {
+        "exit_code": 1,
+        "meaning": "Requested feature is not supported in this install"
+      },
+      "ok": {
+        "exit_code": 0,
+        "meaning": "Success"
+      },
+      "update_error": {
+        "exit_code": 11,
+        "meaning": "Self-update failed"
+      },
+      "usage_error": {
+        "exit_code": 2,
+        "meaning": "Bad arguments or invalid option values"
+      },
+      "validation_failed": {
+        "exit_code": 4,
+        "meaning": "Precondition failed before running"
+      }
+    },
+    "examples": [
+      "apr robot status",
+      "apr robot workflows",
+      "apr robot lint --round 1 -w myspec",
+      "apr robot validate 1 -w myspec",
+      "apr robot run 1",
+      "apr robot show 3 -w myspec",
+      "apr robot diff 3 -w myspec",
+      "apr robot diff 3 2 -w myspec",
+      "apr robot integrate 3 -w myspec",
+      "apr robot history -w myspec",
+      "apr robot stats -w myspec"
+    ],
+    "human_errors": {
+      "note": "Fatal human-mode failures emit this ASCII-only stderr tag before exiting.",
+      "stderr_tag": "APR_ERROR_CODE=<code>"
+    },
+    "options": {
+      "--compact": "Minified JSON output",
+      "--fail-on-warn": "Treat lint warnings as errors (strict mode; same as APR_FAIL_ON_WARN=1)",
+      "--no-lint": "Bypass run lint gate (explicit and noisy)",
+      "--round N": "Round context for lint warnings",
+      "--stats": "Show token savings statistics (JSON vs TOON byte comparison)",
+      "-f, --format FORMAT": "Robot output format: json or toon (env: APR_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)",
+      "-i, --include-impl": "Include implementation document",
+      "-w, --workflow NAME": "Workflow name (default: from config)"
+    },
+    "quick_start": "For agents: 1) apr robot status (check setup), 2) apr robot show <N> (read round), 3) apr robot integrate <N> (get prompt), 4) apr robot stats (check convergence)",
+    "usage": "apr robot <command> [args] [options]"
+  },
+  "meta": {},
+  "ok": true
+}

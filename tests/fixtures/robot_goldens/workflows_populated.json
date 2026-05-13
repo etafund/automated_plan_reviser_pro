@@ -1,0 +1,13 @@
+{
+  "code": "ok",
+  "data": {
+    "workflows": [
+      {
+        "description": "Golden-test workflow",
+        "name": "default"
+      }
+    ]
+  },
+  "meta": {},
+  "ok": true
+}

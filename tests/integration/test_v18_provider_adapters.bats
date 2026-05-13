@@ -310,16 +310,15 @@ assert_envelope() {
     ' "$ARTIFACT_DIR/stdout.log" >/dev/null
 }
 
-@test "adapters/claude-codex: --json mode exit code reflects ok=false (strict)" {
-    # Currently fails: claude-codex-adapters.py prints the failure
-    # envelope but still exits 0 when --json is passed. Tracked as
-    # follow-up bug bead automated_plan_reviser_pro-80p0. Deleting
-    # the skip below once the fix lands is the natural acceptance
-    # signal.
-    skip "claude-codex-adapters.py --json mode does not honor ok=false in exit code — see bead automated_plan_reviser_pro-80p0"
-
+@test "adapters/claude-codex: --json mode exit code reflects ok=false" {
+    # Bug 80p0 was fixed: claude-codex-adapters.py now exits 1 when
+    # ok=false in --json mode (sys.exit(0 if out['ok'] else 1) outside
+    # the format-switch branch). Enforce the contract here.
     run_with_artifacts python3 "$CLAUDE_CODEX" --provider claude --action invoke --json
-    [[ "$status" -ne 0 ]]
+    [[ "$status" -ne 0 ]] || {
+        echo "claude-codex-adapters.py --json should exit non-zero when ok=false (bug 80p0 regression)" >&2
+        return 1
+    }
     jq -e '.ok == false' "$ARTIFACT_DIR/stdout.log" >/dev/null
 }
 

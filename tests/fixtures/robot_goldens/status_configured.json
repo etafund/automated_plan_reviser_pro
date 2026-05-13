@@ -1,0 +1,17 @@
+{
+  "code": "ok",
+  "data": {
+    "apr_home": "<APR_HOME>",
+    "config_dir": ".apr",
+    "configured": true,
+    "default_workflow": "default",
+    "oracle_available": true,
+    "oracle_method": "npx",
+    "workflow_count": 1,
+    "workflows": [
+      "default"
+    ]
+  },
+  "meta": {},
+  "ok": true
+}

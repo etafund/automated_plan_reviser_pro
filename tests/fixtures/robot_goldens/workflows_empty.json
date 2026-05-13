@@ -1,0 +1,9 @@
+{
+  "code": "not_configured",
+  "data": {
+    "workflows": []
+  },
+  "hint": "Run 'apr robot init' then 'apr setup'",
+  "meta": {},
+  "ok": false
+}

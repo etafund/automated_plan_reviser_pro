@@ -1,0 +1,16 @@
+{
+  "code": "ok",
+  "data": {
+    "apr_home": "<APR_HOME>",
+    "config_dir": ".apr",
+    "configured": false,
+    "default_workflow": "",
+    "oracle_available": true,
+    "oracle_method": "npx",
+    "workflow_count": 0,
+    "workflows": []
+  },
+  "hint": "Run 'apr robot init' to initialize, then 'apr setup' to create workflow",
+  "meta": {},
+  "ok": true
+}
