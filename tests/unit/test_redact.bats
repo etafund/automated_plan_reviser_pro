@@ -58,6 +58,16 @@ teardown() {
     [ "$APR_REDACT_COUNT" = "1" ]
 }
 
+@test "redact: assign API preserves output and counters in caller shell" {
+    local prompt="key=sk-aabbccddeeff112233445566778899XYZABC use it"
+
+    apr_lib_redact_prompt_assign prompt "$prompt"
+
+    [[ "$prompt" == *"<<REDACTED:OPENAI_KEY>>"* ]]
+    [[ "$prompt" != *"aabbccddeeff"* ]]
+    [ "$APR_REDACT_COUNT" = "1" ]
+}
+
 @test "redact: 'sk-' too short -> NOT redacted" {
     local out
     out=$(apr_lib_redact_prompt "ref: sk-ab")

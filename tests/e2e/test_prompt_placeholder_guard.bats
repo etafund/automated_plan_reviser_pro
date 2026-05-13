@@ -27,7 +27,7 @@ install_fixture_workflow() {
     local fixture="$1"          # e.g. with_template.yaml
     local workflow="$2"         # e.g. template
 
-    cd "$TEST_PROJECT"
+    cd "$TEST_PROJECT" || return 1
 
     mkdir -p .apr/workflows ".apr/rounds/$workflow"
 
@@ -122,8 +122,12 @@ teardown() {
 
     [[ "$status" -eq 0 ]]
     # No QC failure surface (the failure message uses a recognizable prefix).
-    ! grep -Fq 'Prompt quality check failed' "$ARTIFACT_DIR/stderr.log"
-    ! grep -Fq 'unexpanded placeholders' "$ARTIFACT_DIR/stderr.log"
+    if grep -Fq 'Prompt quality check failed' "$ARTIFACT_DIR/stderr.log"; then
+        return 1
+    fi
+    if grep -Fq 'unexpanded placeholders' "$ARTIFACT_DIR/stderr.log"; then
+        return 1
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -166,7 +170,65 @@ teardown() {
     }
 
     # No QC failure message in stderr.
-    ! grep -Fq 'Prompt quality check failed' "$ARTIFACT_DIR/stderr.log"
+    if grep -Fq 'Prompt quality check failed' "$ARTIFACT_DIR/stderr.log"; then
+        return 1
+    fi
+}
+
+@test "redact: APR_REDACT=1 redacts resolved prompt before render" {
+    install_fixture_workflow "with_template.yaml" "redact"
+
+    cat > "$TEST_PROJECT/.apr/workflows/redact.yaml" <<'EOF'
+name: redact-workflow
+documents:
+  readme: README.md
+  spec: SPECIFICATION.md
+oracle:
+  model: "5.2 Thinking"
+rounds:
+  output_dir: .apr/rounds/redact
+template: |
+  Please review this plan.
+  Diagnostic token: sk-aabbccddeeff112233445566778899XYZABC
+EOF
+
+    cat > "$TEST_DIR/bin/oracle" <<'EOF'
+#!/usr/bin/env bash
+prompt=""
+while (($#)); do
+    case "$1" in
+        --version)
+            echo "oracle 0.8.4 (mock)"
+            exit 0
+            ;;
+        --help)
+            echo "Usage: oracle [options]"
+            exit 0
+            ;;
+        -p)
+            shift
+            prompt="${1-}"
+            ;;
+    esac
+    shift || true
+done
+printf '%s\n' "$prompt"
+EOF
+    chmod +x "$TEST_DIR/bin/oracle"
+
+    APR_REDACT=1 run_with_artifacts "$APR_SCRIPT" run 1 --render --no-lint
+
+    [[ "$status" -eq 0 ]] || {
+        echo "render exited $status with output:" >&2
+        echo "$output" >&2
+        return 1
+    }
+
+    grep -Fq '<<REDACTED:OPENAI_KEY>>' "$ARTIFACT_DIR/stdout.log"
+    if grep -Fq 'sk-aabbccddeeff112233445566778899XYZABC' "$ARTIFACT_DIR/stdout.log"; then
+        return 1
+    fi
+    grep -Fq 'Prompt redaction applied: 1 replacement(s)' "$ARTIFACT_DIR/stderr.log"
 }
 
 # ---------------------------------------------------------------------------

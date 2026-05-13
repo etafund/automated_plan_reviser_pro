@@ -21,6 +21,11 @@
 #       input). Sets APR_REDACT_COUNT (total redactions performed,
 #       integer >= 0) on success. Returns 0 always.
 #
+#   apr_lib_redact_prompt_assign <variable-name> <text>
+#       Assigns the redacted prompt to <variable-name> without a command
+#       substitution subshell, preserving APR_REDACT_COUNT and summary
+#       counters in the caller.
+#
 #   apr_lib_redact_summary
 #       Echo a compact JSON object summarizing the last redact call:
 #         {"total": N, "by_type": {"OPENAI_KEY": N, "PRIVATE_KEY_BLOCK": N, ...}}
@@ -89,10 +94,15 @@ _apr_redact_bump() {
 }
 
 # -----------------------------------------------------------------------------
-# apr_lib_redact_prompt <text>
+# apr_lib_redact_prompt_assign <variable-name> <text>
 # -----------------------------------------------------------------------------
-apr_lib_redact_prompt() {
-    local text="${1-}"
+apr_lib_redact_prompt_assign() {
+    local target="${1-}"
+    local text="${2-}"
+    if [[ ! "$target" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+        return 2
+    fi
+
     _apr_redact_reset
 
     # Multi-line PRIVATE KEY blocks. Count BEGIN headers as the proxy
@@ -152,6 +162,16 @@ apr_lib_redact_prompt() {
     _apr_redact_bump AKIA_KEY          "$akia_n"
     _apr_redact_bump AUTH_BEARER_TOKEN "$auth_n"
 
+    printf -v "$target" '%s' "$out"
+    return 0
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_redact_prompt <text>
+# -----------------------------------------------------------------------------
+apr_lib_redact_prompt() {
+    local out
+    apr_lib_redact_prompt_assign out "${1-}" || return $?
     printf '%s' "$out"
     return 0
 }
