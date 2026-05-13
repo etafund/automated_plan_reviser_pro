@@ -419,8 +419,19 @@ apr_lib_template_expand() {
             local body_trimmed
             body_trimmed="$(_apr_template_trim "$body")"
             local directive_text="[[APR:${body}]]"
+            # Disable pathname expansion before splitting on whitespace.
+            # Without this, an unquoted expansion of `$body_trimmed`
+            # below would glob-expand `*`, `?`, `[...]` against the CWD
+            # — leaking filenames into directive args (bd-r3lo).
+            # We restore the prior glob state immediately after.
+            local _apr_t_old_glob_off=0
+            case $- in *f*) _apr_t_old_glob_off=1 ;; esac
+            set -f
             # shellcheck disable=SC2206
             local -a tokens=($body_trimmed)
+            if [[ "$_apr_t_old_glob_off" -eq 0 ]]; then
+                set +f
+            fi
             if [[ ${#tokens[@]} -eq 0 ]]; then
                 _apr_template_set_error "bad_args" "$line_no" "$directive_text" "" "" \
                     "Empty directive body" \

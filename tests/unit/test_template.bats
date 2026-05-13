@@ -226,6 +226,30 @@ SHA_EMPTY="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     assert_output --partial "[[APR:FILE README.md"
 }
 
+@test "LIT: regression bd-r3lo — `*` is NOT glob-expanded against CWD" {
+    # OrangeGorge's repro: prior to the fix, an unquoted `$body_trimmed`
+    # in the tokenizer made `*` glob-match the project root's filenames.
+    # `set -f` around the array assignment shuts this down.
+    local out
+    out=$(apr_lib_template_expand "[[APR:LIT punctuation * ( ) ]]" "$PROJECT_ROOT" 0 0 0)
+    [ "$out" = "punctuation * ( )" ]
+}
+
+@test "LIT: regression bd-r3lo — `?` is NOT glob-expanded" {
+    # Single-char glob '?'. Touch a file so '?' would match if globbing leaked.
+    touch "$PROJECT_ROOT/A"
+    local out
+    out=$(apr_lib_template_expand "[[APR:LIT before ? after]]" "$PROJECT_ROOT" 0 0 0)
+    [ "$out" = "before ? after" ]
+}
+
+@test "LIT: regression bd-r3lo — `[abc]` bracket class is NOT glob-expanded" {
+    touch "$PROJECT_ROOT/a" "$PROJECT_ROOT/b" "$PROJECT_ROOT/c"
+    local out
+    out=$(apr_lib_template_expand "[[APR:LIT pre [abc] post]]" "$PROJECT_ROOT" 0 0 0)
+    [ "$out" = "pre [abc] post" ]
+}
+
 # =============================================================================
 # Parser: unknown TYPE, unterminated, multiple directives
 # =============================================================================

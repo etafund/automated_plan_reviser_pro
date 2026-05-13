@@ -359,18 +359,10 @@ text"
 }
 
 @test "MR9c: LIT preserves glob metacharacters verbatim (strict)" {
-    # Currently fails: the parser's tokenization step in lib/template.sh
-    # uses an *unquoted* array assignment, so any `*` / `?` / `[...]`
-    # glob metacharacter in a directive body gets expanded against the
-    # current working directory's file list before the LIT handler can
-    # emit it. The result is that, in the project root, the LIT body
-    # "a * b" becomes "a AGENTS.md CHANGELOG.md ... b".
-    #
-    # Tracked as follow-up bug bead automated_plan_reviser_pro-r3lo.
-    # Delete the skip below once the apr-side fix lands and this test
-    # will start enforcing the contract.
-    skip "lib/template.sh tokenization leaks pathname expansion — see bead automated_plan_reviser_pro-r3lo"
-
+    # Pinned: lib/template.sh tokenization now disables pathname expansion
+    # (`set -f` around the array assignment, bd-r3lo). This test enforces
+    # the contract going forward — if the fix regresses, this test fails
+    # before any prompt with `*` / `?` / `[...]` reaches a model.
     local bodies=(
         "left * right"
         "question ? mark"
