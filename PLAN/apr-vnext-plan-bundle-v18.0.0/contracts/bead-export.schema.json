@@ -1,0 +1,289 @@
+{
+  "$id": "https://example.invalid/vibe-planning/contracts/bead-export.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "$defs": {
+    "non_empty_string": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "string_array": {
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "type": "array"
+    }
+  },
+  "properties": {
+    "apply_policy": {
+      "additionalProperties": true,
+      "properties": {
+        "apply_requires_explicit_flag": {
+          "const": true
+        },
+        "direct_jsonl_edit_allowed": {
+          "const": false
+        },
+        "uses_br_commands_only": {
+          "const": true
+        }
+      },
+      "required": [
+        "apply_requires_explicit_flag",
+        "direct_jsonl_edit_allowed",
+        "uses_br_commands_only"
+      ],
+      "type": "object"
+    },
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "created_at": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "export_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "plan_id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "proposed_operations": {
+      "items": {
+        "additionalProperties": true,
+        "properties": {
+          "bead": {
+            "additionalProperties": true,
+            "properties": {
+              "acceptance_criteria": {
+                "$ref": "#/$defs/string_array"
+              },
+              "body_md": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "labels": {
+                "$ref": "#/$defs/string_array"
+              },
+              "priority": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "test_obligations": {
+                "items": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "command": {
+                      "$ref": "#/$defs/non_empty_string"
+                    },
+                    "expected": {
+                      "$ref": "#/$defs/non_empty_string"
+                    },
+                    "test_id": {
+                      "$ref": "#/$defs/non_empty_string"
+                    }
+                  },
+                  "required": [
+                    "test_id",
+                    "command",
+                    "expected"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "title": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "type": {
+                "enum": [
+                  "task",
+                  "bug",
+                  "feature",
+                  "epic",
+                  "docs"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "type",
+              "priority",
+              "labels",
+              "body_md",
+              "acceptance_criteria",
+              "test_obligations"
+            ],
+            "type": "object"
+          },
+          "command": {
+            "items": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "minItems": 2,
+            "type": "array"
+          },
+          "command_preview": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "depends_on_operation_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "operation": {
+            "enum": [
+              "br_create",
+              "br_dep_add",
+              "br_dep_cycles"
+            ]
+          },
+          "operation_id": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "plan_item_ids": {
+            "$ref": "#/$defs/string_array"
+          },
+          "source_traceability": {
+            "additionalProperties": true,
+            "properties": {
+              "acceptance_criteria_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "evidence_refs": {
+                "$ref": "#/$defs/string_array"
+              },
+              "human_decision_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "provider_result_refs": {
+                "$ref": "#/$defs/string_array"
+              },
+              "rollback_point_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "source_refs": {
+                "$ref": "#/$defs/string_array"
+              },
+              "test_ids": {
+                "$ref": "#/$defs/string_array"
+              }
+            },
+            "required": [
+              "acceptance_criteria_ids",
+              "provider_result_refs",
+              "source_refs",
+              "test_ids",
+              "rollback_point_ids"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "operation_id",
+          "operation",
+          "command",
+          "command_preview",
+          "plan_item_ids"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "safeguards": {
+      "additionalProperties": true,
+      "properties": {
+        "cycle_check_command": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "duplicate_detection": {
+          "enum": [
+            "title_slug_and_plan_item_id",
+            "none"
+          ]
+        },
+        "mutation_mode": {
+          "enum": [
+            "dry_run",
+            "apply"
+          ]
+        }
+      },
+      "required": [
+        "duplicate_detection",
+        "cycle_check_command",
+        "mutation_mode"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "bead_export.v1"
+    },
+    "source_plan": {
+      "additionalProperties": true,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stage": {
+          "const": "bead_export_ready"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "stage"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "additionalProperties": true,
+      "properties": {
+        "br_create_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "br_dep_add_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "operation_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "plan_item_count": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "plan_item_count",
+        "operation_count",
+        "br_create_count",
+        "br_dep_add_count"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "export_id",
+    "created_at",
+    "dry_run",
+    "plan_id",
+    "source_plan",
+    "summary",
+    "apply_policy",
+    "safeguards",
+    "proposed_operations"
+  ],
+  "title": "Bead Export",
+  "type": "object",
+  "x-bundle-version": "v18.0.0"
+}

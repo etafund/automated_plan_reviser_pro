@@ -1,0 +1,62 @@
+{
+  "apply_policy": {
+    "apply_requires_explicit_flag": true,
+    "direct_jsonl_edit_allowed": true,
+    "uses_br_commands_only": false
+  },
+  "bundle_version": "v18.0.0",
+  "created_at": "2026-05-13T04:31:00Z",
+  "dry_run": true,
+  "export_id": "bead-export-missing-trace",
+  "plan_id": "plan-demo",
+  "proposed_operations": [
+    {
+      "bead": {
+        "acceptance_criteria": [],
+        "body_md": "A vague task without traceability.",
+        "labels": [
+          "v18"
+        ],
+        "priority": 1,
+        "test_obligations": [],
+        "title": "Route readiness and synthesis gate",
+        "type": "task"
+      },
+      "command": [
+        "git",
+        "add",
+        ".beads/issues.jsonl"
+      ],
+      "command_preview": "edit .beads/issues.jsonl directly",
+      "operation": "br_create",
+      "operation_id": "create-plan-route-gating",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "source_traceability": {
+        "acceptance_criteria_ids": [],
+        "provider_result_refs": [],
+        "rollback_point_ids": [],
+        "source_refs": [],
+        "test_ids": []
+      }
+    }
+  ],
+  "safeguards": {
+    "cycle_check_command": "br dep cycles --json",
+    "duplicate_detection": "title_slug_and_plan_item_id",
+    "mutation_mode": "dry_run"
+  },
+  "schema_version": "bead_export.v1",
+  "source_plan": {
+    "path": "fixtures/plan-artifact.json",
+    "sha256": "sha256:eda761e0213475c9ed61780c8d7ebd0ab51d8d7028a16b54fb25eb49fd694037",
+    "stage": "bead_export_ready"
+  },
+  "summary": {
+    "br_create_count": 1,
+    "br_dep_add_count": 0,
+    "operation_count": 1,
+    "plan_item_count": 1
+  }
+}

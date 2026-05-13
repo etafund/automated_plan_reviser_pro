@@ -1,0 +1,109 @@
+{
+  "apply_policy": {
+    "apply_requires_explicit_flag": true,
+    "direct_jsonl_edit_allowed": false,
+    "uses_br_commands_only": true
+  },
+  "bundle_version": "v18.0.0",
+  "created_at": "2026-05-13T04:31:00Z",
+  "dry_run": true,
+  "export_id": "bead-export-plan-demo",
+  "plan_id": "plan-demo",
+  "proposed_operations": [
+    {
+      "bead": {
+        "acceptance_criteria": [
+          "All required provider routes produce synthesis-eligible artifacts or typed, retry-aware failures."
+        ],
+        "body_md": "## Objective\nKeep synthesis blocked until provider results, evidence, route readiness, and review quorum records agree.\n\n## Traceability\n- Plan item: PLAN-ROUTE-GATING\n- Source refs: SRC-LOCAL-BRIEF\n- Provider result refs: provider-result-demo-chatgpt_pro_first_plan, provider-result-demo-gemini_deep_think\n- Evidence refs: evidence-demo-chatgpt_pro_first_plan, evidence-demo-gemini_deep_think\n- Human decisions: APR-DECISION-001\n\n## Acceptance Criteria\n- All required provider routes produce synthesis-eligible artifacts or typed, retry-aware failures.\n\n## Test Obligations\n- TEST-ROUTE-READINESS-CONTRACT: python3 scripts/contract-fixture-smoke.py --json\n\n## Rollback\n- RB-ROUTE-GATING: apr providers readiness --json\n",
+        "labels": [
+          "v18",
+          "exported-plan",
+          "implementation_phase"
+        ],
+        "priority": 1,
+        "test_obligations": [
+          {
+            "command": "python3 scripts/contract-fixture-smoke.py --json",
+            "expected": "route readiness fixture validates and synthesis gates are non-circular",
+            "test_id": "TEST-ROUTE-READINESS-CONTRACT"
+          }
+        ],
+        "title": "Route readiness and synthesis gate",
+        "type": "task"
+      },
+      "command": [
+        "br",
+        "create",
+        "Route readiness and synthesis gate",
+        "--type",
+        "task",
+        "--priority",
+        "1"
+      ],
+      "command_preview": "br create 'Route readiness and synthesis gate' --type task --priority 1",
+      "depends_on_operation_ids": [],
+      "operation": "br_create",
+      "operation_id": "create-plan-route-gating",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "source_traceability": {
+        "acceptance_criteria_ids": [
+          "AC-PROVIDER-ROUTES-TYPED"
+        ],
+        "evidence_refs": [
+          "evidence-demo-chatgpt_pro_first_plan",
+          "evidence-demo-gemini_deep_think"
+        ],
+        "human_decision_ids": [
+          "APR-DECISION-001"
+        ],
+        "provider_result_refs": [
+          "provider-result-demo-chatgpt_pro_first_plan",
+          "provider-result-demo-gemini_deep_think"
+        ],
+        "rollback_point_ids": [
+          "RB-ROUTE-GATING"
+        ],
+        "source_refs": [
+          "SRC-LOCAL-BRIEF"
+        ],
+        "test_ids": [
+          "TEST-ROUTE-READINESS-CONTRACT"
+        ]
+      }
+    },
+    {
+      "command": [
+        "br",
+        "dep",
+        "cycles",
+        "--json"
+      ],
+      "command_preview": "br dep cycles --json",
+      "operation": "br_dep_cycles",
+      "operation_id": "check-dependency-cycles",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ]
+    }
+  ],
+  "safeguards": {
+    "cycle_check_command": "br dep cycles --json",
+    "duplicate_detection": "title_slug_and_plan_item_id",
+    "mutation_mode": "dry_run"
+  },
+  "schema_version": "bead_export.v1",
+  "source_plan": {
+    "path": "fixtures/plan-artifact.json",
+    "sha256": "sha256:eda761e0213475c9ed61780c8d7ebd0ab51d8d7028a16b54fb25eb49fd694037",
+    "stage": "bead_export_ready"
+  },
+  "summary": {
+    "br_create_count": 1,
+    "br_dep_add_count": 0,
+    "operation_count": 2,
+    "plan_item_count": 1
+  }
+}
