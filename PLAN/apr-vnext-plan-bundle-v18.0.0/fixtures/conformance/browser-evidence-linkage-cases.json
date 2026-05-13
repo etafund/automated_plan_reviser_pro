@@ -1,0 +1,264 @@
+{
+  "bundle_version": "v18.0.0",
+  "cases": [
+    {
+      "case_id": "chatgpt_verified_evidence_accepts",
+      "expected_decision": "accepted",
+      "expected_reason_code": null,
+      "evidence": {
+        "available_effort_labels_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "browser_effort_strategy": "select_highest_visible",
+        "bundle_version": "v18.0.0",
+        "capture_confidence": "high",
+        "created_at": "2026-05-13T00:00:10Z",
+        "effort_rank": "highest_visible",
+        "evidence_id": "evidence-link-chatgpt",
+        "mode_verified": true,
+        "observed_reasoning_effort_label": "Heavy",
+        "output_text_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "prompt_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "prompt_submitted_at": "2026-05-13T00:00:05Z",
+        "provider": "chatgpt",
+        "provider_result_id": "provider-result-link-chatgpt",
+        "provider_slot": "chatgpt_pro_first_plan",
+        "reasoning_effort_verified": true,
+        "redaction_policy": "redacted",
+        "requested_mode": "pro_extended_reasoning",
+        "requested_reasoning_effort": "max_browser_available",
+        "run_id": "run-link-check",
+        "schema_version": "browser_evidence.v1",
+        "selected_effort_is_highest_visible": true,
+        "selector_manifest_version": "chatgpt-pro-v1",
+        "session_id_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "transition_log_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "unsafe_artifacts_quarantined": true,
+        "verification_method": "same_session_ui_observation_plus_selector_trace",
+        "verification_scope": "same_browser_session_before_prompt_submit",
+        "verified_at": "2026-05-13T00:00:00Z",
+        "verified_before_prompt_submit": true
+      },
+      "lease": {
+        "blocked_reason": null,
+        "bundle_version": "v18.0.0",
+        "expires_at": "2026-05-13T00:30:00Z",
+        "fix_command": null,
+        "holder": "apr-run-link-check",
+        "issued_at": "2026-05-13T00:00:00Z",
+        "lease_id": "lease-link-chatgpt",
+        "lock_name": "browser:shared-profile:chatgpt",
+        "next_command": null,
+        "profile_id_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "profile_scope": "shared_logical_remote_browser_profile_with_provider_locks",
+        "provider": "chatgpt",
+        "remote_browser": {
+          "endpoint_id": "remote-browser-link",
+          "host_env": "ORACLE_REMOTE_HOST",
+          "mode": "preferred",
+          "no_plaintext_secrets": true,
+          "status": "ready",
+          "token_env": "ORACLE_REMOTE_TOKEN"
+        },
+        "renewable": true,
+        "schema_version": "browser_lease.v1",
+        "shared_profile_policy": "one_user_auth_context_per_remote_browser_host",
+        "status": "acquired",
+        "ttl_seconds": 1800
+      },
+      "provider_result": {
+        "access_path": "oracle_browser_remote",
+        "bundle_version": "v18.0.0",
+        "evidence": {
+          "evidence_id": "evidence-link-chatgpt",
+          "mode_verified": true,
+          "verified_before_prompt_submit": true
+        },
+        "evidence_id": "evidence-link-chatgpt",
+        "prompt_manifest_sha256": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
+        "provider_family": "chatgpt",
+        "provider_result_id": "provider-result-link-chatgpt",
+        "provider_slot": "chatgpt_pro_first_plan",
+        "reasoning_effort": "max_browser_available",
+        "reasoning_effort_verified": true,
+        "result_text_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "schema_version": "provider_result.v1",
+        "source_baseline_sha256": "sha256:3434343434343434343434343434343434343434343434343434343434343434",
+        "status": "success",
+        "synthesis_eligible": true
+      },
+      "provider_slot": "chatgpt_pro_first_plan",
+      "route_id": "route-link-chatgpt",
+      "session": {
+        "bundle_version": "v18.0.0",
+        "next_command": null,
+        "profile": "shared-remote-profile",
+        "provider_locks": [
+          {
+            "lock": "browser:shared-profile:chatgpt",
+            "provider": "chatgpt"
+          },
+          {
+            "lock": "browser:shared-profile:gemini",
+            "provider": "gemini"
+          }
+        ],
+        "remote_browser": {
+          "host_env": "ORACLE_REMOTE_HOST",
+          "preferred": true,
+          "token_env": "ORACLE_REMOTE_TOKEN"
+        },
+        "schema_version": "browser_session.v1",
+        "session_id": "browser-session-link",
+        "status": "ready"
+      }
+    },
+    {
+      "case_id": "gemini_verified_evidence_accepts",
+      "expected_decision": "accepted",
+      "expected_reason_code": null,
+      "evidence": {
+        "available_effort_labels_hash": "sha256:5656565656565656565656565656565656565656565656565656565656565656",
+        "browser_effort_strategy": "select_deep_think_and_highest_thinking_level_if_exposed",
+        "bundle_version": "v18.0.0",
+        "capture_confidence": "high",
+        "created_at": "2026-05-13T00:00:10Z",
+        "effort_rank": "deep_think_selected_and_highest_visible",
+        "evidence_id": "evidence-link-gemini",
+        "mode_verified": true,
+        "observed_reasoning_effort_label": "Deep Think",
+        "output_text_sha256": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+        "prompt_sha256": "sha256:9090909090909090909090909090909090909090909090909090909090909090",
+        "prompt_submitted_at": "2026-05-13T00:00:05Z",
+        "provider": "gemini",
+        "provider_result_id": "provider-result-link-gemini",
+        "provider_slot": "gemini_deep_think",
+        "reasoning_effort_verified": true,
+        "redaction_policy": "redacted",
+        "requested_mode": "gemini_3_1_pro_deep_think",
+        "requested_reasoning_effort": "deep_think_highest_available",
+        "run_id": "run-link-check",
+        "schema_version": "browser_evidence.v1",
+        "selected_effort_is_highest_visible": true,
+        "selector_manifest_version": "gemini-deep-think-v1",
+        "session_id_hash": "sha256:abababababababababababababababababababababababababababababababab",
+        "thinking_level_if_exposed": "high",
+        "thinking_level_verified": true,
+        "transition_log_sha256": "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "unsafe_artifacts_quarantined": true,
+        "verification_method": "same_session_ui_observation_plus_selector_trace",
+        "verification_scope": "same_browser_session_before_prompt_submit",
+        "verified_at": "2026-05-13T00:00:00Z",
+        "verified_before_prompt_submit": true
+      },
+      "lease": {
+        "blocked_reason": null,
+        "bundle_version": "v18.0.0",
+        "expires_at": "2026-05-13T00:30:00Z",
+        "fix_command": null,
+        "holder": "apr-run-link-check",
+        "issued_at": "2026-05-13T00:00:00Z",
+        "lease_id": "lease-link-gemini",
+        "lock_name": "browser:shared-profile:gemini",
+        "next_command": null,
+        "profile_id_hash": "sha256:efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+        "profile_scope": "shared_logical_remote_browser_profile_with_provider_locks",
+        "provider": "gemini",
+        "remote_browser": {
+          "endpoint_id": "remote-browser-link",
+          "host_env": "ORACLE_REMOTE_HOST",
+          "mode": "preferred",
+          "no_plaintext_secrets": true,
+          "status": "ready",
+          "token_env": "ORACLE_REMOTE_TOKEN"
+        },
+        "renewable": true,
+        "schema_version": "browser_lease.v1",
+        "shared_profile_policy": "one_user_auth_context_per_remote_browser_host",
+        "status": "acquired",
+        "ttl_seconds": 1800
+      },
+      "provider_result": {
+        "access_path": "oracle_browser_remote",
+        "bundle_version": "v18.0.0",
+        "evidence": {
+          "evidence_id": "evidence-link-gemini",
+          "mode_verified": true,
+          "verified_before_prompt_submit": true
+        },
+        "evidence_id": "evidence-link-gemini",
+        "prompt_manifest_sha256": "sha256:1313131313131313131313131313131313131313131313131313131313131313",
+        "provider_family": "gemini",
+        "provider_result_id": "provider-result-link-gemini",
+        "provider_slot": "gemini_deep_think",
+        "reasoning_effort": "deep_think_highest_available",
+        "reasoning_effort_verified": true,
+        "result_text_sha256": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+        "schema_version": "provider_result.v1",
+        "source_baseline_sha256": "sha256:1414141414141414141414141414141414141414141414141414141414141414",
+        "status": "success",
+        "synthesis_eligible": true
+      },
+      "provider_slot": "gemini_deep_think",
+      "route_id": "route-link-gemini",
+      "session": {
+        "bundle_version": "v18.0.0",
+        "next_command": null,
+        "profile": "shared-remote-profile",
+        "provider_locks": [
+          {
+            "lock": "browser:shared-profile:chatgpt",
+            "provider": "chatgpt"
+          },
+          {
+            "lock": "browser:shared-profile:gemini",
+            "provider": "gemini"
+          }
+        ],
+        "remote_browser": {
+          "host_env": "ORACLE_REMOTE_HOST",
+          "preferred": true,
+          "token_env": "ORACLE_REMOTE_TOKEN"
+        },
+        "schema_version": "browser_session.v1",
+        "session_id": "browser-session-link",
+        "status": "ready"
+      }
+    },
+    {
+      "case_id": "missing_effort_verification_rejects",
+      "expected_decision": "rejected",
+      "expected_reason_code": "reasoning_effort_not_verified",
+      "evidence_patch": {
+        "reasoning_effort_verified": false
+      },
+      "extends": "chatgpt_verified_evidence_accepts"
+    },
+    {
+      "case_id": "low_confidence_rejects",
+      "expected_decision": "rejected",
+      "expected_reason_code": "capture_confidence_not_high",
+      "evidence_patch": {
+        "capture_confidence": "low"
+      },
+      "extends": "chatgpt_verified_evidence_accepts"
+    },
+    {
+      "case_id": "stale_selector_manifest_rejects",
+      "expected_decision": "rejected",
+      "expected_reason_code": "selector_manifest_stale",
+      "evidence_patch": {
+        "selector_manifest_version": "chatgpt-pro-v0"
+      },
+      "extends": "chatgpt_verified_evidence_accepts"
+    },
+    {
+      "case_id": "unverified_before_prompt_rejects",
+      "expected_decision": "rejected",
+      "expected_reason_code": "not_verified_before_prompt_submit",
+      "evidence_patch": {
+        "verified_before_prompt_submit": false
+      },
+      "extends": "chatgpt_verified_evidence_accepts"
+    }
+  ],
+  "schema_version": "browser_evidence_linkage_cases.v1"
+}
