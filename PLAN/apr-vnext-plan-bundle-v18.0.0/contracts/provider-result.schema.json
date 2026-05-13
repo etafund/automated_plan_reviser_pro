@@ -1,0 +1,444 @@
+{
+  "$id": "https://example.invalid/v18/contracts/provider-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "not": {
+        "required": [
+          "raw_hidden_reasoning"
+        ]
+      }
+    },
+    {
+      "not": {
+        "required": [
+          "chain_of_thought"
+        ]
+      }
+    },
+    {
+      "not": {
+        "properties": {
+          "reasoning_content_stored": {
+            "const": true
+          }
+        },
+        "required": [
+          "reasoning_content_stored"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "synthesis_eligible": {
+            "const": true
+          }
+        },
+        "required": [
+          "synthesis_eligible"
+        ]
+      },
+      "then": {
+        "properties": {
+          "reasoning_effort_verified": {
+            "const": true
+          }
+        },
+        "required": [
+          "reasoning_effort",
+          "reasoning_effort_verified"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider_slot": {
+            "enum": [
+              "chatgpt_pro_first_plan",
+              "chatgpt_pro_synthesis"
+            ]
+          }
+        },
+        "required": [
+          "provider_slot"
+        ]
+      },
+      "then": {
+        "properties": {
+          "access_path": {
+            "enum": [
+              "oracle_browser_remote",
+              "oracle_browser_local",
+              "oracle_browser_remote_or_local"
+            ]
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "evidence_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_family": {
+            "const": "chatgpt"
+          },
+          "reasoning_effort": {
+            "const": "max_browser_available"
+          },
+          "reasoning_effort_verified": {
+            "const": true
+          }
+        },
+        "required": [
+          "evidence",
+          "evidence_id",
+          "reasoning_effort",
+          "reasoning_effort_verified"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider_slot": {
+            "const": "gemini_deep_think"
+          }
+        },
+        "required": [
+          "provider_slot"
+        ]
+      },
+      "then": {
+        "properties": {
+          "access_path": {
+            "enum": [
+              "oracle_browser_remote",
+              "oracle_browser_local",
+              "oracle_browser_remote_or_local"
+            ]
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "evidence_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_family": {
+            "const": "gemini"
+          },
+          "reasoning_effort": {
+            "const": "deep_think_highest_available"
+          },
+          "reasoning_effort_verified": {
+            "const": true
+          }
+        },
+        "required": [
+          "evidence",
+          "evidence_id",
+          "reasoning_effort",
+          "reasoning_effort_verified"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider_slot": {
+            "const": "claude_code_opus"
+          }
+        },
+        "required": [
+          "provider_slot"
+        ]
+      },
+      "then": {
+        "properties": {
+          "access_path": {
+            "const": "claude_code_subscription_cli"
+          },
+          "official_api": {
+            "const": false
+          },
+          "provider_family": {
+            "const": "claude"
+          },
+          "reasoning_effort": {
+            "const": "max"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider_slot": {
+            "const": "xai_grok_reasoning"
+          }
+        },
+        "required": [
+          "provider_slot"
+        ]
+      },
+      "then": {
+        "properties": {
+          "access_path": {
+            "const": "xai_api"
+          },
+          "official_api": {
+            "const": true
+          },
+          "provider_family": {
+            "const": "xai_grok"
+          },
+          "reasoning_effort": {
+            "const": "high"
+          }
+        },
+        "required": [
+          "official_api"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provider_slot": {
+            "const": "deepseek_v4_pro_reasoning_search"
+          }
+        },
+        "required": [
+          "provider_slot"
+        ]
+      },
+      "then": {
+        "properties": {
+          "access_path": {
+            "const": "deepseek_official_api"
+          },
+          "official_api": {
+            "const": true
+          },
+          "provider_family": {
+            "const": "deepseek"
+          },
+          "reasoning_content_policy": {
+            "const": "transient_tool_replay_hash_only_persisted"
+          },
+          "reasoning_content_stored": {
+            "const": false
+          },
+          "reasoning_content_transient_replay": {
+            "const": true
+          },
+          "reasoning_effort": {
+            "const": "max"
+          },
+          "search_enabled": {
+            "const": true
+          },
+          "search_mode": {
+            "const": "tool_call_web_search"
+          }
+        },
+        "required": [
+          "official_api",
+          "reasoning_content_policy",
+          "reasoning_content_stored",
+          "reasoning_content_transient_replay",
+          "search_enabled",
+          "search_mode"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "access_path": {
+      "enum": [
+        "oracle_browser_remote",
+        "oracle_browser_local",
+        "oracle_browser_remote_or_local",
+        "claude_code_subscription_cli",
+        "xai_api",
+        "deepseek_official_api"
+      ]
+    },
+    "api_base_url": {
+      "type": "string"
+    },
+    "api_key_env": {
+      "type": "string"
+    },
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "claude_code_keyword": {
+      "type": "string"
+    },
+    "degradation_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "evidence_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "model": {
+      "type": "string"
+    },
+    "official_api": {
+      "type": "boolean"
+    },
+    "prompt_manifest_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "provider_family": {
+      "enum": [
+        "chatgpt",
+        "gemini",
+        "claude",
+        "xai_grok",
+        "deepseek",
+        "openai_codex"
+      ]
+    },
+    "provider_result_id": {
+      "type": "string"
+    },
+    "provider_result_stage": {
+      "type": "string"
+    },
+    "provider_slot": {
+      "enum": [
+        "chatgpt_pro_first_plan",
+        "chatgpt_pro_synthesis",
+        "gemini_deep_think",
+        "claude_code_opus",
+        "xai_grok_reasoning",
+        "deepseek_v4_pro_reasoning_search"
+      ]
+    },
+    "quorum_eligible": {
+      "type": "boolean"
+    },
+    "reasoning_config": {
+      "type": "object"
+    },
+    "reasoning_content_policy": {
+      "type": "string"
+    },
+    "reasoning_content_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reasoning_content_stored": {
+      "type": "boolean"
+    },
+    "reasoning_content_transient_replay": {
+      "type": "boolean"
+    },
+    "reasoning_effort": {
+      "type": "string"
+    },
+    "reasoning_effort_verified": {
+      "type": "boolean"
+    },
+    "result_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "result_text_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "provider_result.v1"
+    },
+    "search_enabled": {
+      "type": "boolean"
+    },
+    "search_mode": {
+      "type": "string"
+    },
+    "search_tool_name": {
+      "type": "string"
+    },
+    "search_trace_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_baseline_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "success",
+        "failed",
+        "degraded",
+        "skipped",
+        "manual_import",
+        "cached"
+      ]
+    },
+    "synthesis_eligible": {
+      "type": "boolean"
+    },
+    "thinking": {
+      "type": "object"
+    },
+    "thinking_enabled": {
+      "type": "boolean"
+    },
+    "tool_call_replay_policy": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "provider_slot",
+    "provider_family",
+    "access_path",
+    "status",
+    "synthesis_eligible",
+    "evidence",
+    "evidence_id",
+    "prompt_manifest_sha256",
+    "source_baseline_sha256",
+    "provider_result_id",
+    "result_text_sha256"
+  ],
+  "title": "Provider Result",
+  "type": "object",
+  "x-bundle-version": "v18.0.0"
+}

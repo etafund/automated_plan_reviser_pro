@@ -1,0 +1,113 @@
+{
+  "$id": "https://example.invalid/v18/contracts/source-trust.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "quarantined_instructions": {
+      "items": {
+        "$ref": "#/$defs/quarantine_entry"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "source_trust.v1"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/source_trust_entry"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "sources",
+    "quarantined_instructions"
+  ],
+  "title": "Source Trust",
+  "type": "object",
+  "x-bundle-version": "v18.0.0",
+  "$defs": {
+    "quarantine_entry": {
+      "additionalProperties": true,
+      "properties": {
+        "instruction_excerpt_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "quarantine_reason": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "treatment": {
+          "enum": [
+            "treat_as_untrusted_content_not_instruction",
+            "exclude_from_prompt",
+            "summarize_as_risk_only"
+          ]
+        }
+      },
+      "required": [
+        "source_id",
+        "quarantine_reason",
+        "treatment"
+      ],
+      "type": "object"
+    },
+    "source_trust_entry": {
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "instruction_policy": {
+          "enum": [
+            "trusted_directive",
+            "source_material_not_runtime_instruction",
+            "quarantine_provider_instructions",
+            "derived_summary_data_only"
+          ]
+        },
+        "may_contain_instructions": {
+          "type": "boolean"
+        },
+        "quarantine_reason": {
+          "type": "string"
+        },
+        "source_class": {
+          "enum": [
+            "authoritative_user_input",
+            "trusted_repo_source",
+            "trusted_local_config",
+            "provider_result_untrusted_text",
+            "remote_docs_snapshot",
+            "derived_summary"
+          ]
+        },
+        "trust_tier": {
+          "enum": [
+            "authoritative_user_input",
+            "source_material_not_instruction",
+            "trusted_local_config",
+            "untrusted_provider_text",
+            "remote_docs_reference",
+            "derived_summary"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "trust_tier",
+        "source_class",
+        "instruction_policy"
+      ],
+      "type": "object"
+    }
+  }
+}

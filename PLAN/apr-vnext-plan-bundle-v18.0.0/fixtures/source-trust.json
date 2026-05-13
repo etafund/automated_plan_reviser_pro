@@ -1,0 +1,34 @@
+{
+  "bundle_version": "v18.0.0",
+  "quarantined_instructions": [
+    {
+      "instruction_excerpt_sha256": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "quarantine_reason": "provider_text_attempts_to_override_route_policy",
+      "source_id": "provider-result-chatgpt-first-plan",
+      "treatment": "treat_as_untrusted_content_not_instruction"
+    }
+  ],
+  "schema_version": "source_trust.v1",
+  "sources": [
+    {
+      "id": "brief",
+      "instruction_policy": "trusted_directive",
+      "source_class": "authoritative_user_input",
+      "trust_tier": "authoritative_user_input"
+    },
+    {
+      "id": "repo",
+      "instruction_policy": "source_material_not_runtime_instruction",
+      "source_class": "trusted_repo_source",
+      "trust_tier": "source_material_not_instruction"
+    },
+    {
+      "id": "provider-result-chatgpt-first-plan",
+      "instruction_policy": "quarantine_provider_instructions",
+      "may_contain_instructions": true,
+      "quarantine_reason": "provider_text_attempts_to_override_route_policy",
+      "source_class": "provider_result_untrusted_text",
+      "trust_tier": "untrusted_provider_text"
+    }
+  ]
+}

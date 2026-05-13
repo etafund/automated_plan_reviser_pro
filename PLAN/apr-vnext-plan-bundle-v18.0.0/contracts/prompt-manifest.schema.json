@@ -1,0 +1,114 @@
+{
+  "$id": "https://example.invalid/v18/contracts/prompt-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "canonical_artifact_serialization": {
+      "const": "json"
+    },
+    "context_serialization": {
+      "enum": [
+        "json",
+        "toon",
+        "auto"
+      ]
+    },
+    "context_serialization_policy_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "excluded_sections": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "included_sections": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "input_hashes": {
+      "additionalProperties": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "properties": {
+        "brief": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "prompt_policy": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_baseline": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_trust": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "brief"
+      ],
+      "type": "object"
+    },
+    "policy_family": {
+      "type": "string"
+    },
+    "policy_version": {
+      "type": "string"
+    },
+    "prompt_id": {
+      "type": "string"
+    },
+    "provider_family": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "prompt_manifest.v1"
+    },
+    "source_trust_quarantine_applied": {
+      "type": "boolean"
+    },
+    "token_budget": {
+      "type": "object"
+    },
+    "toon_payload_sha256_when_used": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "toon_requires_format_preamble": {
+      "type": "boolean"
+    },
+    "trusted_instruction_boundary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "prompt_id",
+    "provider_family",
+    "policy_family",
+    "policy_version",
+    "input_hashes",
+    "canonical_artifact_serialization",
+    "context_serialization",
+    "source_trust_quarantine_applied",
+    "trusted_instruction_boundary"
+  ],
+  "title": "Prompt Manifest",
+  "type": "object",
+  "x-bundle-version": "v18.0.0"
+}

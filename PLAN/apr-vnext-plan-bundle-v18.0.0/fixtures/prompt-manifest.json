@@ -1,0 +1,35 @@
+{
+  "bundle_version": "v18.0.0",
+  "canonical_artifact_serialization": "json",
+  "context_serialization": "json",
+  "context_serialization_policy_sha256": "sha256:9c6346e3521945e38bb75cc3cdf1b20847266e1ac25ca518094892185ad428c4",
+  "excluded_sections": [
+    "unsafe_debug_artifacts"
+  ],
+  "included_sections": [
+    "objective",
+    "constraints"
+  ],
+  "input_hashes": {
+    "brief": "sha256:2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea",
+    "prompt_policy": "sha256:3e4357ccfa3e8e4c8e58d847c6b4dbcf13ab496485b71042306efdd071c2e24d",
+    "source_baseline": "sha256:b91d369c3f7250980878f782559b0c4ccc00a829603c88cf555c0b23bdd12ee6",
+    "source_trust": "sha256:f9b236bfce249a1de0902b408d98f4fb503cc3a67ed8b5576b271dd4e8612417"
+  },
+  "policy_family": "chatgpt_pro_browser",
+  "policy_version": "2026-05-12",
+  "prompt_id": "prompt-demo",
+  "provider_family": "chatgpt_pro_browser",
+  "provider_prompt_families": [
+    "deepseek_v4_pro_api"
+  ],
+  "schema_version": "prompt_manifest.v1",
+  "source_trust_quarantine_applied": true,
+  "trusted_instruction_boundary": "only_user_repo_and_policy_sections_can_issue_instructions",
+  "token_budget": {
+    "max_context_tokens": 120000
+  },
+  "toon_payload_sha256_when_used": null,
+  "toon_requires_format_preamble": true,
+  "toon_rust_legal_gate": "pending_user_approval"
+}
