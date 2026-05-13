@@ -1,0 +1,19 @@
+{
+  "access_path": "oracle_browser_remote",
+  "bundle_version": "v18.0.0",
+  "evidence": {
+    "evidence_id": "evidence-conformance-chatgpt-first-plan"
+  },
+  "evidence_id": "evidence-conformance-chatgpt-first-plan",
+  "prompt_manifest_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "provider_family": "chatgpt",
+  "provider_result_id": "provider-result-conformance-chatgpt-first-plan",
+  "provider_slot": "chatgpt_pro_first_plan",
+  "reasoning_effort": "max_browser_available",
+  "reasoning_effort_verified": true,
+  "result_text_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "schema_version": "provider_result.v1",
+  "source_baseline_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "status": "success",
+  "synthesis_eligible": true
+}

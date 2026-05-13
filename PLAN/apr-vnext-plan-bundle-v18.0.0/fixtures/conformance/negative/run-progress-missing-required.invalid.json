@@ -1,0 +1,19 @@
+{
+  "blocked_reason": null,
+  "bundle_version": "v18.0.0",
+  "completed_stages": [
+    "brief_lint"
+  ],
+  "current_stage": "preflight",
+  "last_event_at": "2026-05-13T00:00:00Z",
+  "next_command": null,
+  "pending_stages": [
+    "first_plan"
+  ],
+  "profile": "balanced",
+  "progress_percent": 10,
+  "run_id": "run-conformance",
+  "schema_version": "run_progress.v1",
+  "state": "preflight",
+  "user_visible_message": "Preflight is incomplete."
+}
