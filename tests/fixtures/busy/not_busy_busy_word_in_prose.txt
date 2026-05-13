@@ -1,0 +1,3 @@
+[oracle] APR has been a busy week of refactors.
+[oracle] note: the busyness of the queue is not the same as oracle busy.
+[oracle] starting session apr-default-round-3

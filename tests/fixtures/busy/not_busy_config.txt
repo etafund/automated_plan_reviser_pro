@@ -1,0 +1,2 @@
+ERROR: config: workflow file not found at .apr/workflows/default.yaml
+hint: run `apr setup` first

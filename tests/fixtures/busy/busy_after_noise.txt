@@ -1,0 +1,8 @@
+[oracle] starting session apr-default-round-3
+[oracle] navigating to chat.openai.com
+[oracle] login OK
+[oracle] mode: 5.2 Thinking, thinking_time=high
+[oracle] heartbeat 1/30
+[oracle] heartbeat 2/30
+ERROR: busy
+[oracle] giving up after busy signal

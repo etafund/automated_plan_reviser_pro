@@ -1,0 +1,4 @@
+[oracle] starting session apr-default-round-3
+[oracle] dialing chat.openai.com
+ERROR: network: connection refused (errno 111)
+[oracle] giving up after 3 attempts

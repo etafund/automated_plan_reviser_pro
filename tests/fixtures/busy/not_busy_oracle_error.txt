@@ -1,0 +1,3 @@
+[oracle] starting session apr-default-round-3
+ERROR: browser-automation: failed to load chat page (timeout 60s)
+[oracle] this is not a busy state, the upstream is reachable but slow

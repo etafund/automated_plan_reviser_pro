@@ -1,0 +1,3 @@
+[oracle] config: busylight=true
+[oracle] busylight indicator wired up on /dev/usb/hid0
+[oracle] starting session apr-default-round-3
