@@ -1,0 +1,11 @@
+{
+  "schema_version": "approval_ledger.v1",
+  "bundle_version": "v18.0.0",
+  "ledger_id": "bad-ledger",
+  "run_id": "run-123",
+  "approvals": [
+    {
+      "approval_id": "DECISION-001"
+    }
+  ]
+}

@@ -39,7 +39,7 @@ def get_run_status(run_dir):
         return None
         
     last_event = events[-1]
-    completed_stages = [e['stage'] for e in events if e.get('outcome') == 'succeeded']
+    completed_stages = [e['stage'] for e in events if e.get('outcome') == 'success']
     failed_stages = [e['stage'] for e in events if e.get('outcome') == 'failed']
     
     return {

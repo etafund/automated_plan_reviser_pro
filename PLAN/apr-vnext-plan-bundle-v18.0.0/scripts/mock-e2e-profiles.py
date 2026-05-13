@@ -237,7 +237,7 @@ def write_events(run_dir: Path, commands: list[dict[str, Any]], profile: str) ->
             "timestamp": command["completed_at"],
             "stage": command["meta_tool"] or f"command_{index}",
             "action": "mock_e2e_step",
-            "outcome": "succeeded" if command["exit_code"] == 0 and command["json_ok"] else "failed",
+            "outcome": "success" if command["exit_code"] == 0 and command["json_ok"] else "failed",
             "profile": profile,
             "command": " ".join(command["command"]),
         })

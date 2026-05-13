@@ -8,7 +8,7 @@ VERSION = 'v18.0.0'
 
 VALID_STAGES = [
     'pending', 'ready', 'running', 'blocked', 'degraded', 'waiting', 
-    'manual_import_required', 'failed', 'succeeded', 'skipped_by_profile'
+    'manual_import', 'failed', 'success', 'skipped', 'cached'
 ]
 
 def generate_run_id():

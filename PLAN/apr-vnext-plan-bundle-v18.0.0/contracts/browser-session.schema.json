@@ -34,7 +34,7 @@
       "enum": [
         "ready",
         "blocked",
-        "recovering",
+        "degraded",
         "unknown"
       ]
     }
