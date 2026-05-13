@@ -20,8 +20,32 @@ teardown() {
     run python3 "$SCRIPT_PATH" --input "$fixture" --json
     assert_failure
     assert_output --partial '"ok": false'
-    assert_output --partial 'replay_failed'
+    assert_output --partial '"error_code": "normalization_failed"'
     assert_output --partial 'mocked_enrichment_not_export_ready'
+}
+
+@test "Eval-only accepts complete Plan IR fixture" {
+    local fixture="${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/fixtures/plan-artifact.json"
+    run python3 "$SCRIPT_PATH" --input "$fixture" --eval-only --json
+    assert_success
+    assert_output --partial '"stage": "eval"'
+    assert_output --partial '"passed": true'
+    assert_output --partial '"traceability_score": 1.0'
+    assert_output --partial '"risk_mitigation_score": 1.0'
+}
+
+@test "Eval-only fails envelope when Plan IR eval fails" {
+    local fixture="${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/fixtures/plan-artifact.json"
+    local bad_plan="$TEST_DIR/plan-missing-acceptance.json"
+    jq 'del(.acceptance_criteria, .acceptance_criteria_records)' "$fixture" > "$bad_plan"
+
+    run python3 "$SCRIPT_PATH" --input "$bad_plan" --eval-only --json
+    assert_failure
+    assert_output --partial '"ok": false'
+    assert_output --partial '"passed": false'
+    assert_output --partial '"ac_coverage": 0.0'
+    assert_output --partial '"error_code": "eval_failed"'
+    assert_output --partial 'Plan IR missing acceptance criteria'
 }
 
 @test "Replay from run directory" {
