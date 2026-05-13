@@ -586,6 +586,7 @@ fi
 # Lock file path (set when acquired)
 APR_LOCK_FILE=""
 APR_LOCK_FD=""
+APR_LOCK_DIR=""
 
 # Acquire a lock for a workflow/round to prevent concurrent runs
 # Usage: acquire_lock workflow round
@@ -600,8 +601,9 @@ acquire_lock() {
 
     local lock_path="$lock_dir/${workflow}_round_${round}.lock"
 
-    # Use flock if available (preferred - atomic and robust)
-    if command -v flock &>/dev/null; then
+    # Use flock if available (preferred - atomic and robust).
+    # APR_LOCK_FORCE_FALLBACK=1 forces the no-flock path for tests/debugging.
+    if [[ "${APR_LOCK_FORCE_FALLBACK:-0}" != "1" ]] && command -v flock &>/dev/null; then
         # Open file descriptor without truncating. Only update the PID file after the lock is acquired,
         # otherwise failed attempts can clobber the running process' PID info.
         if ! exec {APR_LOCK_FD}<>"$lock_path"; then
@@ -622,30 +624,48 @@ acquire_lock() {
         APR_LOCK_FILE="$lock_path"
         verbose "acquire_lock: acquired flock on FD $APR_LOCK_FD ($lock_path)"
     else
-        # Fallback: simple file-based locking
-        # Try atomic creation first (noclobber)
-        if (set -C; echo "$$" > "$lock_path") 2>/dev/null; then
-            APR_LOCK_FILE="$lock_path"
-            verbose "acquire_lock: acquired fallback lock ($lock_path)"
+        # Fallback (no flock): use atomic mkdir lock directory to avoid stale
+        # lock rm+recreate TOCTOU races.
+        local lock_dir_path="${lock_path}.d"
+        local lock_pid_file="${lock_dir_path}/pid"
+        if mkdir "$lock_dir_path" 2>/dev/null; then
+            if ! printf '%s\n' "$$" > "$lock_pid_file" 2>/dev/null; then
+                rmdir "$lock_dir_path" 2>/dev/null || true
+                return 1
+            fi
+            APR_LOCK_FILE="$lock_pid_file"
+            APR_LOCK_DIR="$lock_dir_path"
+            verbose "acquire_lock: acquired fallback lock dir ($lock_dir_path)"
             return 0
         fi
 
-        # File exists - check if stale
+        # Lock exists - check if stale
         local pid
-        pid=$(cat "$lock_path" 2>/dev/null || echo "")
-        # Check if the process is still running
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            verbose "acquire_lock: fallback lock held by PID $pid"
+        pid=$(cat "$lock_pid_file" 2>/dev/null || echo "")
+        if [[ -z "$pid" || ! "$pid" =~ ^[0-9]+$ ]]; then
+            # Missing/invalid PID is treated as "locked by someone else" to
+            # avoid deleting a contender's fresh lock dir before its pid write.
             return 1
         fi
-        
-        # Stale lock file - remove and retry once
-        if ! rm -f "$lock_path" 2>/dev/null; then
+        if kill -0 "$pid" 2>/dev/null; then
+            verbose "acquire_lock: fallback lock dir held by PID $pid"
             return 1
         fi
-        if (set -C; echo "$$" > "$lock_path") 2>/dev/null; then
-            APR_LOCK_FILE="$lock_path"
-            verbose "acquire_lock: acquired fallback lock after stale cleanup"
+
+        # Attempt stale cleanup. rmdir is atomic, so we don't delete another
+        # contender's freshly-acquired lock directory.
+        rm -f "$lock_pid_file" 2>/dev/null || true
+        rmdir "$lock_dir_path" 2>/dev/null || true
+
+        # Retry one atomic claim.
+        if mkdir "$lock_dir_path" 2>/dev/null; then
+            if ! printf '%s\n' "$$" > "$lock_pid_file" 2>/dev/null; then
+                rmdir "$lock_dir_path" 2>/dev/null || true
+                return 1
+            fi
+            APR_LOCK_FILE="$lock_pid_file"
+            APR_LOCK_DIR="$lock_dir_path"
+            verbose "acquire_lock: acquired fallback lock dir after stale cleanup"
             return 0
         fi
         return 1
@@ -664,6 +684,11 @@ release_lock() {
         verbose "release_lock: removing file $APR_LOCK_FILE"
         rm -f "$APR_LOCK_FILE" 2>/dev/null || true
         APR_LOCK_FILE=""
+    fi
+    if [[ -n "$APR_LOCK_DIR" && -d "$APR_LOCK_DIR" ]]; then
+        verbose "release_lock: removing dir $APR_LOCK_DIR"
+        rmdir "$APR_LOCK_DIR" 2>/dev/null || true
+        APR_LOCK_DIR=""
     fi
 }
 
@@ -687,6 +712,7 @@ background_lock_detach_parent() {
 
     APR_LOCK_FD=""
     APR_LOCK_FILE=""
+    APR_LOCK_DIR=""
 }
 
 # -----------------------------------------------------------------------------
@@ -1660,6 +1686,34 @@ validate_output_file() {
 
     # Output looks valid
     return 0
+}
+
+oracle_status_line_for_slug() {
+    local slug="$1"
+    local status_output line normalized token line_lc
+
+    [[ -n "$slug" ]] || return 1
+    [[ ${#ORACLE_CMD[@]} -gt 0 ]] || return 1
+
+    status_output=$("${ORACLE_CMD[@]}" status --hours "${STATUS_HOURS:-72}" 2>&1) || return 1
+
+    while IFS= read -r line; do
+        normalized=$(printf '%s\n' "$line" | sed 's/[^[:alnum:]_.-]/ /g')
+        for token in $normalized; do
+            if [[ "$token" == "$slug" ]]; then
+                line_lc="${line,,}"
+                case "$line_lc" in
+                    *completed*|*complete*|*done*|*failed*|*failure*|*error*|*canceled*|*cancelled*)
+                        continue
+                        ;;
+                esac
+                printf '%s\n' "$line"
+                return 0
+            fi
+        done
+    done <<< "$status_output"
+
+    return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -5213,6 +5267,22 @@ run_round() {
         slug="${slug}-with-impl"
     fi
 
+    if [[ "$dry_run" != "true" && "$render" != "true" && "$manifest_only" != "true" ]]; then
+        local existing_session_line=""
+        if existing_session_line=$(oracle_status_line_for_slug "$slug"); then
+            print_warning "Oracle session already running for this round: $slug"
+            print_info "Skipping new session to avoid duplicate work."
+            if [[ -n "$existing_session_line" ]]; then
+                print_dim "Matched session: $existing_session_line"
+            fi
+            if [[ "$QUIET_MODE" != "true" ]]; then
+                apr_ui_cta "Attach" "apr attach $slug"
+                apr_ui_cta "Status" "apr status --hours ${STATUS_HOURS:-72}"
+            fi
+            exit $EXIT_SUCCESS
+        fi
+    fi
+
     # Warn if output file already exists
     if [[ -f "$output_file" && "$dry_run" != "true" && "$render" != "true" ]]; then
         local file_size
@@ -8611,6 +8681,34 @@ robot_run() {
 
     if [[ "$include_impl" == "true" && -n "$impl_path" ]]; then
         slug="${slug}-with-impl"
+    fi
+
+    local existing_session_line=""
+    if existing_session_line=$(oracle_status_line_for_slug "$slug"); then
+        local data
+        data=$(jq -nc \
+            --arg slug "$slug" \
+            --arg output_file "$output_file" \
+            --arg workflow "$workflow" \
+            --arg round "$round_num" \
+            --argjson include_impl "$include_impl" \
+            --arg attach_command "apr attach $slug" \
+            --arg status_command "apr status --hours ${STATUS_HOURS:-72}" \
+            --arg session_line "$existing_session_line" \
+            '{
+                kind: "session_already_running",
+                status: "already_running",
+                slug: $slug,
+                output_file: $output_file,
+                workflow: $workflow,
+                round: ($round | tonumber),
+                include_impl: $include_impl,
+                attach_command: $attach_command,
+                status_command: $status_command,
+                session_line: $session_line
+            }')
+        robot_json true "ok" "$data" "Existing Oracle session found; attach instead of starting a duplicate"
+        return 0
     fi
 
     # Check if output file already exists (Robot mode safety)

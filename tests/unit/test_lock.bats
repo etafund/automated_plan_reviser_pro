@@ -291,6 +291,50 @@ teardown() {
     [[ $status -eq 0 ]] || skip "Stale lock detection not implemented"
 }
 
+@test "acquire_lock fallback: concurrent stale recovery allows only one winner" {
+    local lock_root="$CONFIG_DIR/.locks"
+    local lock_path="$lock_root/test_round_1.lock"
+    local lock_dir_path="${lock_path}.d"
+    local lock_pid_file="${lock_dir_path}/pid"
+    local results="$TEST_DIR/fallback-race-results.txt"
+
+    mkdir -p "$lock_dir_path"
+    printf '%s\n' "99999999" > "$lock_pid_file"
+    : > "$results"
+
+    run bash -c '
+        set -euo pipefail
+        source "'"$TEST_DIR"'/apr_functions.bash"
+        export CONFIG_DIR="'"$CONFIG_DIR"'"
+        export APR_LOCK_FORCE_FALLBACK=1
+        result_file="'"$results"'"
+        attempt() {
+            if acquire_lock "test" "1"; then
+                printf "ok\n" >> "$result_file"
+                sleep 1
+                release_lock
+            else
+                printf "fail\n" >> "$result_file"
+            fi
+        }
+        attempt &
+        attempt &
+        wait
+    '
+    assert_success
+
+    local ok_count
+    local fail_count
+    ok_count=$(grep -c '^ok$' "$results" || true)
+    fail_count=$(grep -c '^fail$' "$results" || true)
+
+    log_test_actual "ok_count" "$ok_count"
+    log_test_actual "fail_count" "$fail_count"
+
+    [[ "$ok_count" -eq 1 ]]
+    [[ "$fail_count" -eq 1 ]]
+}
+
 # =============================================================================
 # Lock File Location Tests
 # =============================================================================
