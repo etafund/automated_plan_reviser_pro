@@ -522,6 +522,34 @@ cleanup_temp() {
         DASHBOARD_ACTIVE=false
     fi
 
+    # Update ledger with failed state if it was left hanging (bd-1wd)
+    if [[ -n "${APR_ACTIVE_LEDGER_PATH:-}" && -f "$APR_ACTIVE_LEDGER_PATH" ]]; then
+        # Check if it was already finished/failed by checking the state field
+        if grep -q '"state": "started"' "$APR_ACTIVE_LEDGER_PATH" 2>/dev/null; then
+            local failed_at
+            failed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            # We don't have all the data here (like files_json) unless we exported it too.
+            # For the cleanup trap, we'll try to build a minimal failure doc.
+            # In a real impl, we'd probably read the started doc and just update state.
+            
+            # Simple approach: just use a generic 'failed' state if we can't build a full doc.
+            # But let's try to be a bit better.
+            if command -v apr_lib_ledger_build_finished >/dev/null 2>&1; then
+                local ledger_failed_doc
+                ledger_failed_doc=$(apr_lib_ledger_build_finished \
+                    "${APR_ACTIVE_WORKFLOW:-unknown}" \
+                    "${APR_ACTIVE_ROUND:-0}" \
+                    "${APR_ACTIVE_SLUG:-unknown}" \
+                    "${APR_ACTIVE_RUN_ID:-unknown}" \
+                    "${APR_ACTIVE_STARTED_AT:-$failed_at}" \
+                    "$failed_at" "failed" \
+                    "[]" "unknown" "browser" "${APR_ACTIVE_MODEL:-unknown}" \
+                    "internal_error" "1" "" "0" "0" "0")
+                apr_lib_ledger_write_finish "$APR_ACTIVE_LEDGER_PATH" "$ledger_failed_doc"
+            fi
+        fi
+    fi
+
     # Remove temp directory
     if [[ -n "$APR_TEMP_DIR" && -d "$APR_TEMP_DIR" ]]; then
         rm -rf -- "$APR_TEMP_DIR"
@@ -4185,6 +4213,41 @@ run_round() {
         return "$(apr_exit_code_for_code validation_failed)"
     fi
 
+    # Prepare ledger (bd-1wd)
+    local ledger_started_at run_id ledger_path files_json prompt_hash
+    if [[ "$dry_run" != "true" && "$render" != "true" && "$manifest_only" != "true" ]]; then
+        ledger_started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        run_id="run-$(apr_lib_manifest_hash_text "$slug-$ledger_started_at")"
+        ledger_path=$(apr_lib_ledger_path "$workflow" "$round_num")
+        
+        # Export for cleanup trap (bd-1wd)
+        export APR_ACTIVE_LEDGER_PATH="$ledger_path"
+        export APR_ACTIVE_RUN_ID="$run_id"
+        export APR_ACTIVE_WORKFLOW="$workflow"
+        export APR_ACTIVE_ROUND="$round_num"
+        export APR_ACTIVE_SLUG="$slug"
+        export APR_ACTIVE_STARTED_AT="$ledger_started_at"
+        export APR_ACTIVE_MODEL="$model"
+        
+        # Files JSON for ledger (must match triples used in build_prompt_manifest)
+        local readme spec impl
+        readme=$(yaml_unquote "$(get_config_value "readme" "$config_path" 2>/dev/null || echo "")")
+        spec=$(yaml_unquote   "$(get_config_value "spec"   "$config_path" 2>/dev/null || echo "")")
+        impl=$(yaml_unquote   "$(get_config_value "implementation" "$config_path" 2>/dev/null || echo "")")
+        local -a triples=()
+        [[ -n "$readme" ]] && triples+=("$readme|required|")
+        [[ -n "$spec"   ]] && triples+=("$spec|required|")
+        if [[ -n "$impl" ]]; then
+            if [[ "$include_impl" == "true" ]]; then triples+=("$impl|impl_every_n|"); else triples+=("$impl|skipped|not-included-this-round"); fi
+        fi
+        files_json=$(apr_lib_manifest_render_json "${triples[@]}")
+        prompt_hash=$(apr_lib_manifest_hash_text "$prompt")
+
+        local ledger_started_doc
+        ledger_started_doc=$(apr_lib_ledger_build_started "$workflow" "$round_num" "$slug" "$run_id" "$ledger_started_at" "$files_json" "$prompt_hash" "browser" "$model")
+        apr_lib_ledger_write_start "$ledger_path" "$ledger_started_doc"
+    fi
+
     # Quality gate: refuse to run if the prompt contains obvious unexpanded placeholders.
     if ! prompt_quality_check "$prompt" "$config_path" "prompt"; then
         if [[ "$ROBOT_MODE" == "true" ]]; then
@@ -4548,6 +4611,23 @@ run_round() {
 
         echo "" >&2
         print_info "Output will be saved to: $output_file"
+    fi
+
+    # Update ledger (finished) (bd-1wd)
+    if [[ "$dry_run" != "true" && "$render" != "true" && "$manifest_only" != "true" ]]; then
+        if [[ "$wait_mode" == "true" ]]; then
+            local ledger_finished_at code
+            ledger_finished_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            if [[ $oracle_exit -eq 0 ]]; then code="ok"; else code="oracle_error"; fi
+            
+            local ledger_finished_doc
+            ledger_finished_doc=$(apr_lib_ledger_build_finished "$workflow" "$round_num" "$slug" "$run_id" \
+                "$ledger_started_at" "$ledger_finished_at" "finished" \
+                "$files_json" "$prompt_hash" "browser" "$model" \
+                "$code" "$oracle_exit" "$output_file" \
+                "0" "0" "0")
+            apr_lib_ledger_write_finish "$ledger_path" "$ledger_finished_doc"
+        fi
     fi
 
     echo "" >&2
