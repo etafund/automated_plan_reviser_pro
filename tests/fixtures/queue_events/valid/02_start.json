@@ -1,0 +1,9 @@
+{
+  "schema_version": "apr_queue_event.v1",
+  "ts": "2026-05-12T18:00:05Z",
+  "event": "start",
+  "entry_id": "01HZW8XK0K0K0K0K0K0K0K0K01",
+  "workflow": "fcp-review",
+  "runner_id": "runner-a",
+  "started_at": "2026-05-12T18:00:05Z"
+}

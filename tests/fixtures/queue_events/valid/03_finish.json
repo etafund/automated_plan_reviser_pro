@@ -1,0 +1,14 @@
+{
+  "schema_version": "apr_queue_event.v1",
+  "ts": "2026-05-12T18:03:30Z",
+  "event": "finish",
+  "entry_id": "01HZW8XK0K0K0K0K0K0K0K0K01",
+  "workflow": "fcp-review",
+  "ok": true,
+  "code": "ok",
+  "exit_code": 0,
+  "finished_at": "2026-05-12T18:03:30Z",
+  "output_path": ".apr/rounds/fcp-review/round_3.md",
+  "slug": "fcp-review-r3-abcd",
+  "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

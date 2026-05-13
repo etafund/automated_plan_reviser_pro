@@ -48,16 +48,36 @@ apr_term_height() {
 }
 
 apr_color_enabled() {
-    [[ -t 2 ]] || return 1
+    apr_stderr_is_tty || return 1
     [[ -z "${NO_COLOR:-}" ]] || return 1
     [[ "${TERM:-}" != "dumb" ]] || return 1
     return 0
 }
 
+apr_locale_allows_unicode() {
+    local locale="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
+
+    [[ -n "$locale" ]] || return 0
+
+    locale="${locale,,}"
+    case "$locale" in
+        *utf-8*|*utf8*)
+            return 0
+            ;;
+        c|posix|*.ascii|*ascii*)
+            return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 apr_unicode_enabled() {
-    [[ -t 2 ]] || return 1
+    apr_stderr_is_tty || return 1
     [[ -z "${APR_NO_UNICODE:-}" ]] || return 1
     [[ "${TERM:-}" != "dumb" ]] || return 1
+    apr_locale_allows_unicode || return 1
     return 0
 }
 
@@ -101,7 +121,7 @@ apr_layout_mode() {
             ;;
     esac
 
-    if [[ ! -t 2 ]]; then
+    if ! apr_stderr_is_tty; then
         printf 'compact\n'
         return 0
     fi
@@ -285,6 +305,21 @@ apr_ui_banner() {
             printf 'APR v%s\n' "$version" >&2
         fi
     fi
+}
+
+apr_ui_rule() {
+    local width
+    width=$(apr_term_width)
+    (( width > 80 )) && width=80
+    
+    local char
+    char=$(apr_ui_symbol light_rule)
+    
+    local rule=""
+    for ((i=0; i<width; i++)); do
+        rule+="$char"
+    done
+    printf '%s\n' "$rule"
 }
 
 apr_ui_run_step() {

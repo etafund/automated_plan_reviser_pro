@@ -1,0 +1,10 @@
+{
+  "schema_version": "apr_queue_event.v1",
+  "ts": "2026-05-12T18:00:00Z",
+  "event": "finish",
+  "entry_id": "x",
+  "workflow": "fcp-review",
+  "ok": true,
+  "code": "ok",
+  "finished_at": "2026-05-12T18:00:00Z"
+}

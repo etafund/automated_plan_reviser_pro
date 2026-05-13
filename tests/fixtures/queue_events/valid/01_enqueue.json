@@ -1,0 +1,10 @@
+{
+  "schema_version": "apr_queue_event.v1",
+  "ts": "2026-05-12T18:00:00Z",
+  "event": "enqueue",
+  "entry_id": "01HZW8XK0K0K0K0K0K0K0K0K01",
+  "workflow": "fcp-review",
+  "round": 3,
+  "include_impl": false,
+  "requested_slug": null
+}

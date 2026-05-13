@@ -5593,15 +5593,70 @@ cmd_run_v18() {
     esac
 }
 
+status_state_label() {
+    local oracle_output="$1"
+    local oracle_rc="$2"
+
+    if (( oracle_rc != 0 )); then
+        printf 'error\n'
+    elif [[ -z "$oracle_output" ]]; then
+        printf 'unknown\n'
+    elif [[ "$oracle_output" == *"No active sessions"* || "$oracle_output" == *"no active sessions"* ]]; then
+        printf 'idle\n'
+    else
+        printf 'sessions available\n'
+    fi
+}
+
 show_status() {
-    print_banner
-    print_header "ORACLE SESSION STATUS"
+    local layout oracle_output oracle_rc state_label
+
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
     if ! is_non_negative_int "${STATUS_HOURS:-}"; then
         STATUS_HOURS=72
     fi
-    print_info "Showing sessions from last ${STATUS_HOURS}h"
+
+    oracle_rc=0
+    oracle_output=$("${ORACLE_CMD[@]}" status --hours "$STATUS_HOURS" 2>&1) || oracle_rc=$?
+    state_label=$(status_state_label "$oracle_output" "$oracle_rc")
+
+    print_banner
+    if [[ "$layout" == "compact" ]]; then
+        print_header "STATUS"
+        printf '  window: %sh\n' "$STATUS_HOURS" >&2
+        printf '  state:  %s\n' "$state_label" >&2
+    else
+        print_header "ORACLE SESSION STATUS"
+        echo "" >&2
+        printf '  %-10s %s\n' "Window:" "last ${STATUS_HOURS}h" >&2
+        printf '  %-10s %s\n' "State:" "$state_label" >&2
+        printf '  %-10s %s\n' "Source:" "oracle status" >&2
+    fi
+
     echo "" >&2
-    "${ORACLE_CMD[@]}" status --hours "$STATUS_HOURS"
+    if [[ -n "$oracle_output" ]]; then
+        [[ "$layout" == "desktop" ]] && print_header "SESSIONS"
+        printf '%s\n' "$oracle_output" >&2
+    else
+        print_warning "Oracle returned no status lines"
+    fi
+
+    echo "" >&2
+    if (( oracle_rc != 0 )); then
+        print_error "Oracle status failed"
+        print_info "Run 'apr doctor' to check Oracle, or retry with 'apr status --hours ${STATUS_HOURS}'"
+        return "$oracle_rc"
+    fi
+
+    if [[ "$layout" == "compact" ]]; then
+        apr_ui_cta "Filter" "apr status --hours 24"
+        apr_ui_cta "Attach" "apr attach <session>"
+    else
+        print_header "ACTIONS"
+        apr_ui_cta "Attach" "apr attach <session>"
+        apr_ui_cta "Dashboard" "apr dashboard"
+        apr_ui_cta "Narrow window" "apr status --hours 24"
+    fi
 }
 
 attach_session() {
@@ -5701,8 +5756,15 @@ show_history() {
         exit $EXIT_CONFIG_ERROR
     fi
 
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
     print_banner
-    print_header "REVISION HISTORY: $workflow"
+    if [[ "$layout" == "desktop" ]]; then
+        print_header "REVISION HISTORY: $workflow"
+    else
+        print_header "HISTORY · $workflow"
+    fi
     echo "" >&2
 
     local rounds_dir="$CONFIG_DIR/rounds/$workflow"
@@ -5744,7 +5806,7 @@ show_history() {
         round_num=${entry%%|*}
         round_file=${entry#*|}
         size=$(du -h "$round_file" 2>/dev/null | cut -f1)
-        # Cross-platform date: try GNU stat, then BSD stat, then date fallback
+        # Cross-platform date
         mod_ts=$(stat -c '%Y' "$round_file" 2>/dev/null || stat -f '%m' "$round_file" 2>/dev/null || echo "")
         if [[ -n "$mod_ts" && "$mod_ts" =~ ^[0-9]+$ ]]; then
             mod_date=$(date -d "@$mod_ts" '+%Y-%m-%d %H:%M' 2>/dev/null || date -r "$mod_ts" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "N/A")
@@ -5752,27 +5814,47 @@ show_history() {
             mod_date="N/A"
         fi
 
-        # Get first non-empty line as preview
-        first_line=$(grep -m1 '.' "$round_file" 2>/dev/null | head -c 60 | tr '\n' ' ')
-        [[ ${#first_line} -eq 60 ]] && first_line="${first_line}..."
-
         # Mark latest round
         if [[ "$round_num" == "$latest_round" ]]; then
             is_latest=" ${GREEN}(latest)${NC}"
+            if [[ "$GUM_AVAILABLE" == "true" ]]; then
+                is_latest=" $(gum style --foreground 82 '(latest)')"
+            fi
         fi
 
-        if [[ "$GUM_AVAILABLE" == "true" ]]; then
-            echo "$(gum style --foreground 82 --bold "Round $round_num")${is_latest}  $(gum style --faint "$size  $mod_date")" >&2
-            [[ -n "$first_line" ]] && gum style --faint "    $first_line" >&2
+        if [[ "$layout" == "desktop" ]]; then
+            # Get first non-empty line as preview
+            first_line=$(grep -m1 '.' "$round_file" 2>/dev/null | head -c 80 | tr '\n' ' ')
+            [[ ${#first_line} -eq 80 ]] && first_line="${first_line}..."
+
+            if [[ "$GUM_AVAILABLE" == "true" ]]; then
+                echo "$(gum style --foreground 82 --bold "Round $round_num")${is_latest}  $(gum style --faint "$size  $mod_date")" >&2
+                [[ -n "$first_line" ]] && gum style --faint "    $first_line" >&2
+            else
+                echo -e "  ${CYAN}${BOLD}Round $round_num${NC}${is_latest}  ${DIM}$size  $mod_date${NC}" >&2
+                [[ -n "$first_line" ]] && echo -e "    ${DIM}$first_line${NC}" >&2
+            fi
+            echo "" >&2
         else
-            echo -e "  ${CYAN}${BOLD}Round $round_num${NC}${is_latest}  ${DIM}$size  $mod_date${NC}" >&2
-            [[ -n "$first_line" ]] && echo -e "    ${DIM}$first_line${NC}" >&2
+            # Compact mode: one line per entry
+            if [[ "$GUM_AVAILABLE" == "true" ]]; then
+                echo "$(gum style --foreground 82 --bold "R$round_num") $(gum style --faint "$size") ${mod_date:5:11}${is_latest}" >&2
+            else
+                echo -e "${GREEN}${BOLD}R$round_num${NC} ${DIM}$size${NC} ${mod_date:5:11}${is_latest}" >&2
+            fi
         fi
-        echo "" >&2
     done
 
-    # Summary
-    print_dim "Total: ${#round_entries[@]} round(s). Use 'apr show <round>' to view content."
+    # Summary and next steps
+    echo "" >&2
+    if [[ "$layout" == "desktop" ]]; then
+        print_dim "Total: ${#round_entries[@]} round(s) recorded."
+        echo "" >&2
+        apr_ui_cta "Review" "apr show $latest_round"
+        apr_ui_cta "Compare" "apr diff $((latest_round-1)) $latest_round"
+    else
+        apr_ui_cta "Show" "apr show $latest_round"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -5799,6 +5881,34 @@ show_round() {
         exit $EXIT_CONFIG_ERROR
     fi
 
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
+    print_banner
+    if [[ "$layout" == "desktop" ]]; then
+        print_header "ROUND $round_num: $workflow"
+    else
+        print_header "ROUND $round_num · $workflow"
+    fi
+
+    local size mod_date mod_ts
+    size=$(du -h "$output_file" 2>/dev/null | cut -f1)
+    mod_ts=$(stat -c '%Y' "$output_file" 2>/dev/null || stat -f '%m' "$output_file" 2>/dev/null || echo "")
+    if [[ -n "$mod_ts" && "$mod_ts" =~ ^[0-9]+$ ]]; then
+        mod_date=$(date -d "@$mod_ts" '+%Y-%m-%d %H:%M' 2>/dev/null || date -r "$mod_ts" '+%Y-%m-%d %H:%M' 2>/dev/null || echo "N/A")
+    else
+        mod_date="N/A"
+    fi
+
+    if [[ "$layout" == "desktop" ]]; then
+        print_dim "File:   $output_file"
+        print_dim "Size:   $size"
+        print_dim "Date:   $mod_date"
+    else
+        print_dim "$size · $mod_date"
+    fi
+    echo "" >&2
+
     # If pager is available and stdout is a tty, use it
     if [[ -t 1 ]]; then
         if command -v bat &>/dev/null; then
@@ -5811,6 +5921,9 @@ show_round() {
     else
         cat "$output_file"
     fi
+
+    echo "" >&2
+    apr_ui_cta "Compare" "apr diff $((round_num-1)) $round_num"
 }
 
 # -----------------------------------------------------------------------------
@@ -5879,10 +5992,18 @@ diff_rounds() {
     size_old=$(du -h "$file_old" 2>/dev/null | cut -f1)
     size_new=$(du -h "$file_new" 2>/dev/null | cut -f1)
 
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
     print_banner
-    print_header "ROUND COMPARISON: $round_old → $round_new"
-    echo "" >&2
-    print_info "Comparing Round $round_old ($size_old) with Round $round_new ($size_new)"
+    if [[ "$layout" == "desktop" ]]; then
+        print_header "ROUND COMPARISON: $round_old → $round_new"
+        print_dim "Old: R$round_old ($size_old) · $file_old"
+        print_dim "New: R$round_new ($size_new) · $file_new"
+    else
+        print_header "DIFF R$round_old · R$round_new"
+        print_dim "$size_old → $size_new"
+    fi
     echo "" >&2
 
     # Use delta if available (beautiful diff), otherwise fall back to diff
@@ -5911,6 +6032,9 @@ diff_rounds() {
         print_error "No diff tool available (install delta for best experience)"
         exit $EXIT_DEPENDENCY_ERROR
     fi
+
+    echo "" >&2
+    apr_ui_cta "Integrate" "apr integrate $round_new"
 }
 
 # -----------------------------------------------------------------------------
@@ -5956,6 +6080,9 @@ generate_integration() {
 
     local round_size
     round_size=$(du -h "$round_file" 2>/dev/null | cut -f1)
+
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
 
     # Build the integration prompt
     local prompt
@@ -6004,19 +6131,24 @@ EOF
         # Output to stdout
         if [[ "$QUIET_MODE" != "true" ]]; then
             print_banner
-            print_header "CLAUDE CODE INTEGRATION PROMPT"
-            print_info "Round $round_num ($round_size) for workflow '$workflow'"
+            if [[ "$layout" == "desktop" ]]; then
+                print_header "CLAUDE CODE INTEGRATION PROMPT"
+                print_info "Round $round_num ($round_size) · $workflow"
+            else
+                print_header "INTEGRATE · R$round_num"
+                print_dim "$round_size · $workflow"
+            fi
             echo "" >&2
             print_dim "Copy the following prompt to Claude Code:"
             echo "" >&2
-            echo "─────────────────────────────────────────────────────────────" >&2
+            apr_ui_rule >&2
         fi
         echo "$prompt"
         if [[ "$QUIET_MODE" != "true" ]]; then
             echo "" >&2
-            echo "─────────────────────────────────────────────────────────────" >&2
+            apr_ui_rule >&2
             echo "" >&2
-            print_dim "Tip: Use 'apr integrate $round_num --copy' to copy to clipboard"
+            apr_ui_cta "Copy" "apr integrate $round_num --copy"
         fi
     fi
 }
