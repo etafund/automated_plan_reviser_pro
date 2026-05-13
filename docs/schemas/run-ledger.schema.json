@@ -1,0 +1,249 @@
+{
+  "$id": "https://github.com/Dicklesworthstone/automated_plan_reviser_pro/contracts/run-ledger.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "APR Per-Round Run Ledger",
+  "description": "Canonical provenance record for a single APR review round. Written to `.apr/rounds/<workflow>/round_<N>.meta.json`. See docs/schemas/run-ledger-schema.md for prose specification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow",
+    "round",
+    "slug",
+    "run_id",
+    "started_at",
+    "state",
+    "files",
+    "prompt_hash",
+    "oracle",
+    "outcome",
+    "execution"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "apr_run_ledger.v1",
+      "description": "Stable identifier; bumped to v2 on breaking changes (field removal/rename/type change)."
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Workflow name (matches .apr/workflows/<name>.yaml)."
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic round number (1-based)."
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Oracle session slug (e.g. apr-default-round-3)."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable run identifier (recommended: ULID/UUID). Distinct from slug; survives retries."
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the run began."
+    },
+    "finished_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the run reached a terminal state. Null while in-progress."
+    },
+    "duration_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Wall-clock duration in milliseconds. Null until finished."
+    },
+    "state": {
+      "type": "string",
+      "enum": ["started", "finished", "failed", "canceled"],
+      "description": "Terminal state machine. `started` = in-flight; the other three are terminal."
+    },
+    "files": {
+      "type": "array",
+      "description": "Inputs bundled into the prompt. Stable-sorted by `path`.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "basename", "bytes", "sha256", "inclusion_reason"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path as configured in the workflow (project-relative)."
+          },
+          "basename": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Basename of `path` for display/manifest rendering."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exact byte size of file contents."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Lowercase hex sha256 of file bytes."
+          },
+          "inclusion_reason": {
+            "type": "string",
+            "enum": ["required", "optional", "impl_every_n", "skipped"],
+            "description": "Why this file was (or was not) included."
+          },
+          "skipped_reason": {
+            "type": ["string", "null"],
+            "description": "If `inclusion_reason=skipped`, human-readable reason (e.g. `missing`, `not-due-yet`)."
+          }
+        }
+      }
+    },
+    "prompt_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 of the final prompt text (including manifest preamble + template body)."
+    },
+    "manifest_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Optional: sha256 of just the manifest section. Useful when the manifest is stored inline elsewhere."
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "model"],
+      "properties": {
+        "engine": {
+          "type": "string",
+          "description": "Oracle engine (e.g. `browser`, `cli`)."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier (e.g. `5.2 Thinking`)."
+        },
+        "thinking_time": {
+          "type": ["string", "null"],
+          "description": "Optional thinking-time / reasoning-effort knob value."
+        },
+        "remote_host": {
+          "type": ["string", "null"],
+          "description": "Remote host slug (no credentials). Null when local."
+        },
+        "oracle_flags_used": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional record of CLI flags passed to oracle (sanitized — never includes tokens/cookies)."
+        }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "code"],
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True iff `state=finished` AND `code=ok`."
+        },
+        "code": {
+          "type": "string",
+          "description": "Canonical error/result code (see error taxonomy bead bd-3tj). Matches the `code` field on robot-mode envelopes."
+        },
+        "exit_code": {
+          "type": ["integer", "null"],
+          "description": "Process exit code of the underlying oracle invocation. Null if the run never reached process exit."
+        },
+        "output_path": {
+          "type": ["string", "null"],
+          "description": "Path to the round output markdown (e.g. .apr/rounds/<workflow>/round_<N>.md). Null on failure before output was written."
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retries_count", "busy_wait_count", "busy_wait_total_ms"],
+      "properties": {
+        "retries_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of full oracle-invocation retries attempted."
+        },
+        "busy_wait_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of busy-state waits encountered during this run (see bd-3pu)."
+        },
+        "busy_wait_total_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cumulative time spent waiting on busy backoff, in milliseconds."
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Non-fatal findings emitted during lint/run. Same shape as core validator warnings (bd-30c).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "hint": { "type": ["string", "null"] },
+          "source": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "description": "Explicit safety bypasses used (e.g. `--allow-placeholders`).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "value": { "type": ["string", "boolean", "number", "null"] },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "trim": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Size/trim decisions if oversize handling is enabled (per-document trimming, total cap, etc).",
+      "properties": {
+        "policy": { "type": "string" },
+        "trimmed_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "from_bytes", "to_bytes"],
+            "properties": {
+              "path": { "type": "string" },
+              "from_bytes": { "type": "integer", "minimum": 0 },
+              "to_bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "redaction": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Redaction metadata if enabled (count + redactor identity; never the redacted values themselves).",
+      "properties": {
+        "redactor": { "type": "string" },
+        "redactions_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

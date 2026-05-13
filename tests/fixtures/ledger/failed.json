@@ -1,0 +1,75 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "fcp",
+  "round": 7,
+  "slug": "apr-fcp-round-7",
+  "run_id": "01HXQ4R9XYWA0G8N3A5B6C7D8E",
+  "started_at": "2026-05-12T20:02:11Z",
+  "finished_at": "2026-05-12T20:18:42Z",
+  "duration_ms": 991000,
+  "state": "failed",
+  "files": [
+    {
+      "path": "README.md",
+      "basename": "README.md",
+      "bytes": 72847,
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "SPEC.md",
+      "basename": "SPEC.md",
+      "bytes": 41832,
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "docs/implementation.md",
+      "basename": "implementation.md",
+      "bytes": 18204,
+      "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+      "inclusion_reason": "impl_every_n"
+    }
+  ],
+  "prompt_hash": "b8d7c1e9a4f2c3b6e5d0a8f7c6b5a4d3e2f1c0b9a8d7e6f5c4b3a2918273645f",
+  "manifest_hash": "f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a09",
+  "oracle": {
+    "engine": "browser",
+    "model": "5.2 Thinking",
+    "thinking_time": "high",
+    "remote_host": "dev-mbp",
+    "oracle_flags_used": [
+      "--engine", "browser",
+      "--browser-attachments", "never",
+      "-m", "5.2 Thinking",
+      "--slug", "apr-fcp-round-7",
+      "--thinking-time", "high"
+    ]
+  },
+  "outcome": {
+    "ok": false,
+    "code": "oracle_error",
+    "exit_code": 2,
+    "output_path": null
+  },
+  "execution": {
+    "retries_count": 1,
+    "busy_wait_count": 2,
+    "busy_wait_total_ms": 95000
+  },
+  "warnings": [
+    {
+      "code": "doc_size_warning",
+      "message": "SPEC.md (~41 KB) is approaching the inline-paste safety threshold (~200 KB).",
+      "hint": "Consider splitting the spec or enabling EXCERPT directives.",
+      "source": "SPEC.md"
+    }
+  ],
+  "overrides": [
+    {
+      "name": "allow_placeholders",
+      "value": false,
+      "reason": null
+    }
+  ]
+}

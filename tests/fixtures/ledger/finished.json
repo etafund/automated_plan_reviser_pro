@@ -1,0 +1,68 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "default",
+  "round": 3,
+  "slug": "apr-default-round-3",
+  "run_id": "01HXQ3K8VYZ9F7M2A4B5C6D7E8",
+  "started_at": "2026-05-12T19:14:00Z",
+  "finished_at": "2026-05-12T19:39:17Z",
+  "duration_ms": 1517000,
+  "state": "finished",
+  "files": [
+    {
+      "path": "README.md",
+      "basename": "README.md",
+      "bytes": 72847,
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "SPEC.md",
+      "basename": "SPEC.md",
+      "bytes": 41832,
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "docs/implementation.md",
+      "basename": "implementation.md",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inclusion_reason": "skipped",
+      "skipped_reason": "not-due-yet"
+    }
+  ],
+  "prompt_hash": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+  "manifest_hash": null,
+  "oracle": {
+    "engine": "browser",
+    "model": "5.2 Thinking",
+    "thinking_time": null,
+    "remote_host": null,
+    "oracle_flags_used": [
+      "--engine", "browser",
+      "--browser-attachments", "never",
+      "-m", "5.2 Thinking",
+      "--slug", "apr-default-round-3"
+    ]
+  },
+  "outcome": {
+    "ok": true,
+    "code": "ok",
+    "exit_code": 0,
+    "output_path": ".apr/rounds/default/round_3.md"
+  },
+  "execution": {
+    "retries_count": 0,
+    "busy_wait_count": 0,
+    "busy_wait_total_ms": 0
+  },
+  "warnings": [
+    {
+      "code": "policy_thinking_time_unset",
+      "message": "Workflow does not pin a thinking_time; results may drift across runs.",
+      "hint": "Set oracle.thinking_time in the workflow yaml.",
+      "source": ".apr/workflows/default.yaml"
+    }
+  ]
+}
