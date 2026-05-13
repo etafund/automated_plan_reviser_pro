@@ -2,20 +2,295 @@
   "$id": "https://example.invalid/vibe-planning/contracts/artifact-index.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
+  "$defs": {
+    "artifact": {
+      "additionalProperties": true,
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "api_keys"
+            ]
+          },
+          {
+            "required": [
+              "browser_cookies"
+            ]
+          },
+          {
+            "required": [
+              "oauth_tokens"
+            ]
+          },
+          {
+            "required": [
+              "raw_hidden_reasoning"
+            ]
+          },
+          {
+            "required": [
+              "reasoning_content"
+            ]
+          },
+          {
+            "required": [
+              "unredacted_dom"
+            ]
+          },
+          {
+            "required": [
+              "unredacted_screenshot"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "approval_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "artifact_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "atomic_write": {
+          "additionalProperties": true,
+          "properties": {
+            "index_update_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "lock_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "rename_result": {
+              "const": "committed"
+            },
+            "temp_path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "via_temp_rename": {
+              "const": true
+            }
+          },
+          "required": [
+            "index_update_id",
+            "lock_id",
+            "rename_result",
+            "temp_path",
+            "via_temp_rename"
+          ],
+          "type": "object"
+        },
+        "canonical_json": {
+          "const": true
+        },
+        "kind": {
+          "enum": [
+            "approval_ledger",
+            "browser_evidence",
+            "fallback_waiver",
+            "log_bundle",
+            "normalized_plan",
+            "plan_artifact",
+            "provider_request",
+            "provider_result",
+            "synthesis_output",
+            "traceability"
+          ]
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "provider_result_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "redacted_field_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "redaction_level": {
+          "enum": [
+            "none",
+            "redacted",
+            "metadata_only",
+            "secret_free"
+          ]
+        },
+        "sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "source_baseline_sha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "write_state": {
+          "const": "committed"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "atomic_write",
+        "canonical_json",
+        "kind",
+        "path",
+        "redacted_field_count",
+        "redaction_level",
+        "sha256",
+        "write_state"
+      ],
+      "type": "object"
+    }
+  },
   "properties": {
     "artifacts": {
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/artifact"
       },
+      "minItems": 1,
       "type": "array"
+    },
+    "redaction_boundary": {
+      "additionalProperties": true,
+      "properties": {
+        "forbidden_persisted_fields": {
+          "allOf": [
+            {
+              "contains": {
+                "const": "api_keys"
+              }
+            },
+            {
+              "contains": {
+                "const": "browser_cookies"
+              }
+            },
+            {
+              "contains": {
+                "const": "oauth_tokens"
+              }
+            },
+            {
+              "contains": {
+                "const": "raw_hidden_reasoning"
+              }
+            },
+            {
+              "contains": {
+                "const": "reasoning_content"
+              }
+            },
+            {
+              "contains": {
+                "const": "unredacted_dom"
+              }
+            },
+            {
+              "contains": {
+                "const": "unredacted_screenshot"
+              }
+            }
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "private_browser_material_persisted": {
+          "const": false
+        },
+        "raw_hidden_reasoning_persisted": {
+          "const": false
+        },
+        "secret_material_persisted": {
+          "const": false
+        }
+      },
+      "required": [
+        "forbidden_persisted_fields",
+        "private_browser_material_persisted",
+        "raw_hidden_reasoning_persisted",
+        "secret_material_persisted"
+      ],
+      "type": "object"
+    },
+    "run_lock": {
+      "additionalProperties": true,
+      "properties": {
+        "lock_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "const": "exclusive_write_shared_read"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "stale_after_seconds": {
+          "minimum": 60,
+          "type": "integer"
+        },
+        "status_reads_allowed": {
+          "const": true
+        }
+      },
+      "required": [
+        "lock_id",
+        "mode",
+        "path",
+        "stale_after_seconds",
+        "status_reads_allowed"
+      ],
+      "type": "object"
     },
     "schema_version": {
       "const": "artifact_index.v1"
+    },
+    "write_policy": {
+      "additionalProperties": true,
+      "properties": {
+        "atomic_write_required": {
+          "const": true
+        },
+        "rename_required": {
+          "const": true
+        },
+        "status_reads_must_tolerate_partial_writes": {
+          "const": true
+        },
+        "temp_path_pattern": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "atomic_write_required",
+        "rename_required",
+        "status_reads_must_tolerate_partial_writes",
+        "temp_path_pattern"
+      ],
+      "type": "object"
     }
   },
   "required": [
     "schema_version",
-    "artifacts"
+    "artifacts",
+    "redaction_boundary",
+    "run_lock",
+    "write_policy"
   ],
   "title": "Artifact Index",
   "type": "object",
