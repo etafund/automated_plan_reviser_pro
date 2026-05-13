@@ -107,6 +107,27 @@
         "source_class",
         "instruction_policy"
       ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_class": {
+                "const": "provider_result_untrusted_text"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "trust_tier": {
+                "const": "untrusted_provider_text"
+              },
+              "instruction_policy": {
+                "enum": ["source_material_not_runtime_instruction", "quarantine_provider_instructions"]
+              }
+            }
+          }
+        }
+      ],
       "type": "object"
     }
   }

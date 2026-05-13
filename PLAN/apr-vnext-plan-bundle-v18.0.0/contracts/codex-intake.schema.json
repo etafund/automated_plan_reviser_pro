@@ -16,7 +16,7 @@
       "type": "boolean"
     },
     "formal_first_plan": {
-      "type": "boolean"
+      "const": false
     },
     "model": {
       "type": "string"
