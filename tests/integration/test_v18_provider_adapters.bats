@@ -258,12 +258,11 @@ assert_envelope() {
     # any user-installed claude/codex from ~/.local/bin. The subshell
     # scoping prevents the PATH change from leaking into bats teardown.
     local out="$ARTIFACT_DIR/claude_no_path.json"
+    local rc=0
     ( PATH="/usr/bin:/bin"; hash -r; python3 "$CLAUDE_CODEX" \
             --provider claude --action check --json ) \
-        > "$out" 2>/dev/null
-    # NOTE: the --json mode currently exits 0 even on adapter errors
-    # (tracked as bug bead 80p0). Assert envelope contents directly;
-    # the strict exit-code expectation is pinned below behind a skip.
+        > "$out" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
     jq -e '
         .ok == false
         and .data.available == false
@@ -274,9 +273,11 @@ assert_envelope() {
 
 @test "adapters/claude-codex: codex check with PATH stripped surfaces adapter_failed" {
     local out="$ARTIFACT_DIR/codex_no_path.json"
+    local rc=0
     ( PATH="/usr/bin:/bin"; hash -r; python3 "$CLAUDE_CODEX" \
             --provider codex --action check --json ) \
-        > "$out" 2>/dev/null
+        > "$out" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
     jq -e '
         .data.available == false
         and (.errors[0].error_code == "adapter_failed")
@@ -297,12 +298,10 @@ assert_envelope() {
 }
 
 @test "adapters/claude-codex: claude invoke without --prompt fails (envelope ok=false)" {
-    # Current behavior: the adapter raises ValueError, catches it, and
-    # emits an envelope with ok=false and errors[0].error_code ==
-    # adapter_failed. Note that --json mode currently exits 0 even on
-    # error (tracked as bug 80p0); the strict exit-code expectation
-    # is pinned in the next test behind a skip.
+    # The adapter raises ValueError, catches it, emits a stable
+    # ok=false envelope, and exits nonzero in --json mode.
     run_with_artifacts python3 "$CLAUDE_CODEX" --provider claude --action invoke --json
+    [[ "$status" -ne 0 ]]
     jq -e '
         .ok == false
         and (.errors[0].error_code == "adapter_failed")

@@ -40,7 +40,7 @@ teardown() {
 
 @test "Fail on missing prompt for Claude invoke" {
     run python3 "$SCRIPT_PATH" --provider claude --action invoke --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'adapter_failed'
 }

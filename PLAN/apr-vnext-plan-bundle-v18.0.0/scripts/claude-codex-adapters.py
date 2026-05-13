@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # Bundle version: v18.0.0
-import argparse, json, sys, subprocess, logging, time, os
+import argparse
+import json
+import logging
+import subprocess  # nosec B404 - checks fixed local CLI names with shell=False.
+import sys
+import time
 from pathlib import Path
 
 VERSION = 'v18.0.0'
@@ -44,7 +49,13 @@ def main():
             if args.action == 'check':
                 # Check for `claude` binary
                 try:
-                    res = subprocess.run(['claude', '--version'], capture_output=True, text=True)
+                    res = subprocess.run(
+                        ['claude', '--version'],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )  # nosec B603,B607 - intentional PATH availability check for CLI adapter.
                     data['version'] = res.stdout.strip()
                     data['available'] = True
                     logging.info(f"Claude CLI found: {data['version']}")
@@ -53,7 +64,8 @@ def main():
                     data['available'] = False
                     
             elif args.action == 'invoke':
-                if not args.prompt: raise ValueError("--prompt is required for invoke")
+                if not args.prompt:
+                    raise ValueError("--prompt is required for invoke")
                 # Mock invocation of claude code
                 logging.info(f"Invoking Claude with prompt: {args.prompt}")
                 # We would run: claude --model claude-opus-4-7 --effort max ...
@@ -63,7 +75,13 @@ def main():
         elif args.provider == 'codex':
             if args.action == 'check':
                 try:
-                    res = subprocess.run(['codex', '--version'], capture_output=True, text=True)
+                    res = subprocess.run(
+                        ['codex', '--version'],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=15,
+                    )  # nosec B603,B607 - intentional PATH availability check for CLI adapter.
                     data['version'] = res.stdout.strip()
                     data['available'] = True
                     logging.info(f"Codex CLI found: {data['version']}")
@@ -93,11 +111,11 @@ def main():
         print(json.dumps(out, indent=2, sort_keys=True))
     else:
         if errors:
-            for e in errors: print(f"ERROR: {e}", file=sys.stderr)
-            sys.exit(1)
+            for e in errors:
+                print(f"ERROR: {e}", file=sys.stderr)
         else:
             print(f"v18 {args.provider.capitalize()} Adapter: {args.action} success.")
-            sys.exit(0)
+    sys.exit(0 if out['ok'] else 1)
 
 if __name__ == '__main__':
     main()

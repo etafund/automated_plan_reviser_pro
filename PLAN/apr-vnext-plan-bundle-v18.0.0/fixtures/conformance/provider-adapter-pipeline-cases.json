@@ -50,7 +50,7 @@
       "kind": "command",
       "script": "scripts/claude-codex-adapters.py",
       "args": ["--provider", "claude", "--action", "invoke", "--json"],
-      "expect_exit": 0,
+      "expect_exit": 1,
       "expect_ok": false
     },
     {
