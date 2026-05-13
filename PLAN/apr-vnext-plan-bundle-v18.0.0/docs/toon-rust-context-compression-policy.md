@@ -96,6 +96,14 @@ Every package must include:
 - `fixtures/context-serialization-policy.json`
 - a local validator check proving the fixture exists and uses `canonical_storage_format=json` with JSON fallback.
 
+The APR bundle-level validator is:
+
+```bash
+PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/context-serialization-check.sh --json
+```
+
+It reads the policy and canonical prompt context JSON, detects `toon`/`tru` binaries without requiring them, records the canonical JSON hash, and emits a v18 JSON envelope describing the selected transport format. With the current gated policy it falls back to JSON and reports the activation gate that prevented TOON. Adapters may select TOON only after license approval, explicit enablement, binary detection, and strict JSON round-trip validation.
+
 APR additionally owns live prompt compilation decisions. `$vibe-planning` owns dry-run visibility and prompt-pack guidance. Oracle treats TOON as pass-through prompt text and must not become the owner of TOON encoding policy.
 
 ## APR package-specific behavior

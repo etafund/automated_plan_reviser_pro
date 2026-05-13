@@ -50,6 +50,14 @@ Bad uses:
 5. `--json` CLI output always remains JSON. `--context-format toon` affects model-facing prompt payload sections only.
 6. Token savings should be measured per artifact type. Default `auto` uses TOON only if estimated savings are at least 15%.
 
+`scripts/context-serialization-check.sh` is the contract-level enforcement surface for these rules. It returns:
+
+- `selected_format=json` when TOON is unavailable, unapproved, disabled, or explicitly bypassed;
+- `canonical_json_sha256` for the JSON source of truth;
+- `toon_payload_sha256` only when an adapter has encoded a TOON payload;
+- `roundtrip_status=required_before_prompt_transport` whenever TOON is selected;
+- string warnings such as `toon_json_fallback: license_review_not_approved_json_fallback`.
+
 ## User-facing value
 
 This makes long multi-provider review prompts cheaper, smaller, and easier to fit into model contexts without sacrificing the JSON contracts that make the system testable. It also creates a clean experiment knob: users can compare JSON and TOON prompts without changing run state or evidence semantics.
