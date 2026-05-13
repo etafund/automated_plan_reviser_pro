@@ -178,6 +178,7 @@ apr_lib_ack_validate() {
     local ack_matches="false"
     local -a missing=()
     local -a mismatched=()
+    local -a unexpected=()
 
     # Parse the ACK block.
     local parsed
@@ -239,6 +240,19 @@ apr_lib_ack_validate() {
             fi
         done
     fi
+    # bd-kk7n MR4: detect "unexpected" entries — basenames in the ACK
+    # block that aren't in the expected set. Over-supply doesn't break
+    # completeness (the model echoing extra files is harmless), but it's
+    # a useful signal for orchestrators.
+    if [[ -n "${act_sha[*]+set}" ]]; then
+        local abn
+        for abn in "${!act_sha[@]}"; do
+            if [[ -z "${exp_sha[$abn]+set}" ]]; then
+                unexpected+=("$abn")
+            fi
+        done
+    fi
+
     if [[ "$ack_present" == "true" ]] && [[ $all_present -eq 1 ]]; then
         ack_complete="true"
     fi
@@ -246,7 +260,7 @@ apr_lib_ack_validate() {
         ack_matches="true"
     fi
 
-    # Serialize missing[] + mismatched[].
+    # Serialize missing[] + mismatched[] + unexpected[].
     local missing_json="[]"
     if [[ ${#missing[@]} -gt 0 ]]; then
         local mb first=1
@@ -269,9 +283,24 @@ apr_lib_ack_validate() {
         done
         mismatched_json+="]"
     fi
+    local unexpected_json="[]"
+    if [[ ${#unexpected[@]} -gt 0 ]]; then
+        # Stable sort for byte-deterministic output.
+        local sorted_unexpected
+        sorted_unexpected=$(printf '%s\n' "${unexpected[@]}" | LC_ALL=C sort)
+        local ub first=1
+        unexpected_json="["
+        while IFS= read -r ub; do
+            [[ -z "$ub" ]] && continue
+            if [[ $first -eq 0 ]]; then unexpected_json+=","; fi
+            first=0
+            unexpected_json+="\"$(apr_lib_manifest_json_escape "$ub")\""
+        done <<< "$sorted_unexpected"
+        unexpected_json+="]"
+    fi
 
-    printf '{"ack_present":%s,"ack_complete":%s,"ack_matches_manifest":%s,"missing":%s,"mismatched":%s}' \
-        "$ack_present" "$ack_complete" "$ack_matches" "$missing_json" "$mismatched_json"
+    printf '{"ack_present":%s,"ack_complete":%s,"ack_matches_manifest":%s,"missing":%s,"mismatched":%s,"unexpected":%s}' \
+        "$ack_present" "$ack_complete" "$ack_matches" "$missing_json" "$mismatched_json" "$unexpected_json"
 
     if [[ "$ack_matches" == "true" ]]; then
         return 0
