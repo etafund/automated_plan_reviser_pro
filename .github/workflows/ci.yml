@@ -381,3 +381,101 @@ jobs:
           if [[ -n "$TEST_HOME" && -d "$TEST_HOME" ]]; then
             rm -rf "$TEST_HOME"
           fi
+
+  bats-tests:
+    # bd-347: run the vendored bats-core against tests/unit, tests/integration,
+    # and tests/e2e so the high-cost-failure suites (placeholder leaks, lint
+    # gate regressions, busy/queue contract drift, manifest/ledger/ACK
+    # provenance, error contract) are caught on every PR before release.
+    name: BATS Test Suites
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Bash 5 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bash
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/bin"    >> "$GITHUB_PATH"
+
+      - name: Ensure jq + python3 are present
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              sudo apt-get update && sudo apt-get install -y jq
+            else
+              brew install jq
+            fi
+          fi
+          jq --version
+          python3 --version
+
+      - name: Ensure vendored BATS is executable
+        run: |
+          chmod +x tests/lib/bats-core/bin/bats || true
+          ls -la tests/lib/bats-core/bin/
+
+      - name: Make apr executable
+        run: chmod +x apr
+
+      - name: Export APR_LIB_DIR for the tests
+        # tests/helpers/test_helper.bash sources apr via a sed-stripped temp
+        # copy; APR_LIB_DIR points apr_source_optional_libs at the real lib/
+        # directory so apr_lib_* helpers (manifest/validate/ack/busy/etc.)
+        # are reachable in unit tests.
+        run: echo "APR_LIB_DIR=$GITHUB_WORKSPACE/lib" >> "$GITHUB_ENV"
+
+      - name: Run BATS unit suites
+        run: tests/lib/bats-core/bin/bats --tap tests/unit/*.bats
+
+      - name: Run BATS integration suites
+        run: tests/lib/bats-core/bin/bats --tap tests/integration/*.bats
+
+      - name: Run BATS E2E suites
+        run: tests/lib/bats-core/bin/bats --tap tests/e2e/*.bats
+
+      - name: Upload BATS logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bats-logs-${{ matrix.os }}
+          path: |
+            tests/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  negative-regression:
+    # bd-347 section 3: explicit negative-regression checks. A workflow
+    # containing a bare {{README}} placeholder MUST fail lint with
+    # code=validation_failed and exit 4. This is the backstop against the
+    # original placeholder-leak incident class.
+    name: Placeholder-Leak Regression
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ensure jq is present
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Make apr executable
+        run: chmod +x apr
+
+      - name: Export APR_LIB_DIR
+        run: echo "APR_LIB_DIR=$GITHUB_WORKSPACE/lib" >> "$GITHUB_ENV"
+
+      - name: Run the placeholder-guard E2E suite (must pass)
+        run: tests/lib/bats-core/bin/bats --tap tests/e2e/test_prompt_placeholder_guard.bats
+
+      - name: Run the error-contract integration suite (must pass)
+        run: tests/lib/bats-core/bin/bats --tap tests/integration/test_error_contract.bats
