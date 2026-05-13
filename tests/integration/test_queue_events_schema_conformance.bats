@@ -175,23 +175,35 @@ PY
 @test "schema rejects 'enqueue' events that omit 'round'" {
     local f="$FIXTURES_DIR/invalid/04_enqueue_missing_round.json"
     [[ -f "$f" ]] || skip "fixture missing"
-    ! validate_event "$f" 2>/dev/null
+    if validate_event "$f" 2>/dev/null; then
+        echo "fixture $f should have been rejected" >&2
+        return 1
+    fi
 }
 
 @test "schema rejects 'finish' events that omit 'exit_code'" {
     local f="$FIXTURES_DIR/invalid/06_finish_missing_exit_code.json"
     [[ -f "$f" ]] || skip "fixture missing"
-    ! validate_event "$f" 2>/dev/null
+    if validate_event "$f" 2>/dev/null; then
+        echo "fixture $f should have been rejected" >&2
+        return 1
+    fi
 }
 
 @test "schema rejects events with additionalProperties=false leaks" {
     local f="$FIXTURES_DIR/invalid/08_additional_property.json"
     [[ -f "$f" ]] || skip "fixture missing"
-    ! validate_event "$f" 2>/dev/null
+    if validate_event "$f" 2>/dev/null; then
+        echo "fixture $f should have been rejected" >&2
+        return 1
+    fi
 }
 
 @test "schema rejects stderr_digest values that aren't a 64-hex sha256" {
     local f="$FIXTURES_DIR/invalid/09_malformed_stderr_digest.json"
     [[ -f "$f" ]] || skip "fixture missing"
-    ! validate_event "$f" 2>/dev/null
+    if validate_event "$f" 2>/dev/null; then
+        echo "fixture $f should have been rejected" >&2
+        return 1
+    fi
 }
