@@ -427,7 +427,7 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/validate.sh; do
+    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/template.sh "$lib_dir"/validate.sh "$lib_dir"/ledger.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -2056,6 +2056,75 @@ build_revision_prompt() {
     manifest=$(build_prompt_manifest "$include_impl" "$config_file")
 
     template=$(load_prompt_template "$include_impl" "$config_file")
+
+    # bd-btu: if the workflow opts into template_directives via
+    #   template_directives:
+    #     enabled: true
+    # in the yaml, run lib/template.sh's directive engine over the
+    # template body BEFORE concatenation. Path safety + allowlist is
+    # enforced by the engine. The post-expansion QC runs in
+    # lint_collect_findings (which always re-reads build_revision_prompt
+    # and pipes the result through apr_lib_validate_prompt_qc), so any
+    # `[[APR:` residue or `{{...}}` leftover blocks the run.
+    if [[ -n "$template" && -n "$config_file" ]] \
+       && command -v apr_lib_template_expand >/dev/null 2>&1; then
+        local td_enabled
+        td_enabled=$(yaml_unquote "$(get_config_value "template_directives.enabled" "$config_file" 2>/dev/null || echo "")")
+        # Also accept the simpler `template_directives_enabled: true` form
+        # for backward-compat with flat yaml parsers; existing apr
+        # get_config_value isn't recursive, so the dotted key may not
+        # resolve depending on yaml structure.
+        if [[ -z "$td_enabled" ]]; then
+            td_enabled=$(yaml_unquote "$(get_config_value "template_directives_enabled" "$config_file" 2>/dev/null || echo "")")
+        fi
+        if [[ "$td_enabled" == "true" || "$td_enabled" == "1" ]]; then
+            local td_allow_traversal td_allow_absolute
+            td_allow_traversal=$(yaml_unquote "$(get_config_value "template_directives.allow_traversal" "$config_file" 2>/dev/null || echo "")")
+            td_allow_absolute=$(yaml_unquote "$(get_config_value "template_directives.allow_absolute" "$config_file" 2>/dev/null || echo "")")
+            local expand_traversal=0 expand_absolute=0
+            [[ "$td_allow_traversal" == "true" || "$td_allow_traversal" == "1" ]] && expand_traversal=1
+            [[ "$td_allow_absolute" == "true" || "$td_allow_absolute" == "1" ]] && expand_absolute=1
+            # Project root is the directory containing `.apr/`. When
+            # config_file is `.apr/workflows/<wf>.yaml`, that's three
+            # dirname levels up. Default to CWD when the structure
+            # doesn't match expectations.
+            local project_root="."
+            if [[ "$config_file" == */.apr/workflows/* ]]; then
+                project_root="${config_file%%/.apr/workflows/*}"
+                [[ -z "$project_root" ]] && project_root="."
+            fi
+            # Capture engine stdout via tempfile so its error globals
+            # (APR_TEMPLATE_ERROR_*) survive into THIS shell — `$()` is
+            # a subshell and would discard them.
+            local _expand_tmp
+            _expand_tmp=$(mktemp 2>/dev/null || printf '/tmp/apr_template.%s' "$$")
+            if apr_lib_template_expand "$template" "$project_root" \
+                    "$expand_traversal" "$expand_absolute" \
+                    "${APR_VERBOSE_TEMPLATE:-0}" > "$_expand_tmp" 2>/dev/null; then
+                template=$(cat "$_expand_tmp")
+                rm -f -- "$_expand_tmp" 2>/dev/null || true
+            else
+                rm -f -- "$_expand_tmp" 2>/dev/null || true
+                # Engine recorded structured error context globals.
+                # Surface them on stderr so lint_collect_findings /
+                # cmd_run can fail with actionable info.
+                printf '[apr] template: expansion failed (%s): %s\n' \
+                    "${APR_TEMPLATE_ERROR_REASON:-unknown}" \
+                    "${APR_TEMPLATE_ERROR_MESSAGE:-no detail}" >&2
+                if [[ -n "${APR_TEMPLATE_ERROR_HINT:-}" ]]; then
+                    printf '[apr] template: hint: %s\n' "$APR_TEMPLATE_ERROR_HINT" >&2
+                fi
+                if [[ -n "${APR_TEMPLATE_ERROR_DIRECTIVE:-}" ]]; then
+                    printf '[apr] template: at %s:%s -> %s\n' \
+                        "$config_file" \
+                        "${APR_TEMPLATE_ERROR_LINE:-?}" \
+                        "$APR_TEMPLATE_ERROR_DIRECTIVE" >&2
+                fi
+                return 1
+            fi
+        fi
+    fi
+
     if [[ -n "$template" ]]; then
         if [[ -n "$manifest" ]]; then
             printf '%s%s\n' "$manifest" "$template"
