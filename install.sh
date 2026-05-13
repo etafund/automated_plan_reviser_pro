@@ -36,6 +36,7 @@ readonly REPO_OWNER="Dicklesworthstone"
 readonly REPO_NAME="automated_plan_reviser_pro"
 readonly REPO_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main"
 readonly RELEASES_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
+readonly REPO_MIRROR_OWNER="etafund"
 readonly SCRIPT_NAME="apr"
 readonly INSTALLER_VERSION="1.1.0"
 readonly APR_LIB_FILES=(
@@ -474,23 +475,39 @@ install_apr_libraries() {
     local use_sudo="$2"
     local version_info="$3"
     local lib_install_dir="${install_dir}/lib"
-    local lib_base_url="${REPO_URL}/lib"
+    local -a lib_base_urls=()
 
     if [[ -n "${APR_VERSION:-}" ]]; then
-        lib_base_url="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/v${APR_VERSION}/lib"
+        lib_base_urls+=("https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/v${APR_VERSION}/lib")
+        lib_base_urls+=("https://raw.githubusercontent.com/${REPO_MIRROR_OWNER}/${REPO_NAME}/v${APR_VERSION}/lib")
+    else
+        lib_base_urls+=("${REPO_URL}/lib")
+        lib_base_urls+=("https://raw.githubusercontent.com/${REPO_MIRROR_OWNER}/${REPO_NAME}/main/lib")
     fi
 
     log_step "Installing APR libraries (${version_info})..."
     $use_sudo mkdir -p "$lib_install_dir"
 
-    local lib_file lib_url lib_tmp
+    local lib_file lib_url lib_tmp base_url downloaded
     for lib_file in "${APR_LIB_FILES[@]}"; do
-        lib_url="${lib_base_url}/${lib_file}"
-
+        downloaded=0
         lib_tmp=$(mktemp)
-        if ! download_file "$lib_url" "$lib_tmp"; then
+
+        for base_url in "${lib_base_urls[@]}"; do
+            lib_url="${base_url}/${lib_file}"
+            if download_file "$lib_url" "$lib_tmp"; then
+                downloaded=1
+                break
+            fi
+        done
+
+        if [[ "$downloaded" -ne 1 ]]; then
             log_error "Failed to download APR library: lib/${lib_file}"
-            log_error "Source URL: ${lib_url}"
+            log_error "Tried:"
+            for base_url in "${lib_base_urls[@]}"; do
+                log_error "  ${base_url}/${lib_file}"
+            done
+            rm -f "$lib_tmp"
             exit $EXIT_DOWNLOAD_ERROR
         fi
         if ! verify_lib_script "$lib_tmp"; then
@@ -501,6 +518,12 @@ install_apr_libraries() {
         $use_sudo mv "$lib_tmp" "${lib_install_dir}/${lib_file}"
         $use_sudo chmod 0644 "${lib_install_dir}/${lib_file}"
     done
+}
+
+apr_requires_external_libs() {
+    local apr_file="$1"
+    # New modular apr sources ./lib/*.sh; old self-contained releases do not.
+    grep -Eq '\$\{script_dir\}/lib/|apr_source_optional_libs|apr_source_core_libs' "$apr_file"
 }
 
 main() {
@@ -601,10 +624,13 @@ main() {
     $use_sudo mv "$tmp_file" "$script_path"
     $use_sudo chmod +x "$script_path"
 
-    # Install sourced APR libraries next to the apr executable. The runtime
-    # loader defaults to "${script_dir}/lib", so curl|bash installs must carry
-    # these files or lib-backed commands fail with "command not found".
-    install_apr_libraries "$install_dir" "$use_sudo" "$version_info"
+    # Install sourced APR libraries next to the apr executable only when the
+    # downloaded script actually requires external lib/*.sh modules.
+    if apr_requires_external_libs "$script_path"; then
+        install_apr_libraries "$install_dir" "$use_sudo" "$version_info"
+    else
+        log_info "Downloaded APR is self-contained; skipping external library install"
+    fi
 
     # Add to PATH
     add_to_path "$install_dir" "$shell_config"
