@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.1.0",
+  "workflow": "default",
+  "created_at": "2026-05-12T19:14:00Z",
+  "updated_at": "2026-05-12T19:39:17Z",
+  "rounds": [
+    {
+      "round": 3,
+      "timestamp": "2026-05-12T19:39:17Z",
+      "documents": {
+        "readme": {
+          "path": "README.md",
+          "char_count": 5420,
+          "word_count": 892,
+          "line_count": 145,
+          "heading_count": 12,
+          "code_block_count": 5,
+          "link_count": 8,
+          "list_item_count": 23
+        },
+        "spec": {
+          "path": "SPEC.md",
+          "char_count": 14820,
+          "word_count": 2331,
+          "line_count": 412
+        },
+        "implementation": null
+      },
+      "output": {
+        "path": ".apr/rounds/default/round_3.md",
+        "char_count": 8500,
+        "word_count": 1400,
+        "line_count": 180
+      },
+      "changes_from_previous": null,
+      "trust": {
+        "manifest_present": true,
+        "manifest_hash": "f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a09",
+        "prompt_hash": "3a7bd3e2360a3d29eea436fcfb7e44c735d117c42d1c1835420b6b9942dd4f1b",
+        "ack_present": true,
+        "ack_complete": true,
+        "ack_matches_manifest": true,
+        "files_report_supported": true,
+        "files_report_ok": true,
+        "files_report_mismatch": null,
+        "ledger_present": true,
+        "ledger_schema_version": "apr_run_ledger.v1",
+        "secret_detected_count": 0,
+        "redaction_count": 0,
+        "low_trust": false
+      }
+    }
+  ],
+  "convergence": {
+    "detected": false,
+    "confidence": 0.62,
+    "estimated_rounds_remaining": 3,
+    "signals": {
+      "output_size_trend": "decreasing",
+      "change_velocity": "decreasing",
+      "similarity_trend": "increasing"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.1.0",
+  "workflow": "fcp",
+  "created_at": "2026-05-12T20:02:11Z",
+  "updated_at": "2026-05-12T20:18:42Z",
+  "rounds": [
+    {
+      "round": 7,
+      "timestamp": "2026-05-12T20:18:42Z",
+      "documents": {
+        "readme": {
+          "path": "README.md",
+          "char_count": 8420,
+          "word_count": 1230,
+          "line_count": 210
+        },
+        "spec": {
+          "path": "SPEC.md",
+          "char_count": 22140,
+          "word_count": 3812,
+          "line_count": 612
+        },
+        "implementation": {
+          "path": "docs/implementation.md",
+          "char_count": 18204,
+          "word_count": 2950,
+          "line_count": 415
+        }
+      },
+      "output": {
+        "path": ".apr/rounds/fcp/round_7.md",
+        "char_count": 9200,
+        "word_count": 1480,
+        "line_count": 196
+      },
+      "changes_from_previous": {
+        "spec": {
+          "lines_added": 12,
+          "lines_deleted": 4,
+          "lines_modified": 9,
+          "diff_ratio": 0.041,
+          "similarity_score": 0.93
+        }
+      },
+      "trust": {
+        "manifest_present": true,
+        "manifest_hash": "cafebabe000000000000000000000000000000000000000000000000abadbeef",
+        "prompt_hash": "b8d7c1e9a4f2c3b6e5d0a8f7c6b5a4d3e2f1c0b9a8d7e6f5c4b3a2918273645f",
+        "ack_present": true,
+        "ack_complete": true,
+        "ack_matches_manifest": false,
+        "files_report_supported": true,
+        "files_report_ok": false,
+        "files_report_mismatch": {
+          "missing": ["docs/implementation.md"],
+          "extra": [],
+          "size_mismatch": []
+        },
+        "ledger_present": true,
+        "ledger_schema_version": "apr_run_ledger.v1",
+        "secret_detected_count": 1,
+        "redaction_count": 0,
+        "low_trust": true
+      }
+    }
+  ],
+  "convergence": {
+    "detected": false,
+    "confidence": 0.0,
+    "estimated_rounds_remaining": null,
+    "signals": {
+      "output_size_trend": "stable",
+      "change_velocity": "decreasing",
+      "similarity_trend": "increasing"
+    }
+  }
+}

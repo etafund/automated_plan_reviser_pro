@@ -1,0 +1,176 @@
+{
+  "$id": "https://github.com/Dicklesworthstone/automated_plan_reviser_pro/contracts/metrics.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "APR Analytics Metrics",
+  "description": "Per-workflow analytics file at .apr/analytics/<workflow>/metrics.json. v1.1 extends v1.0 (fzi.1) with trust/provenance signals from bd-2ic (manifest hash, ACK status, files-report verification, ledger presence). See docs/schemas/metrics-schema.md for prose spec.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "workflow", "created_at", "updated_at", "rounds"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0.0", "1.1.0"],
+      "description": "Stable identifier. 1.0.0 == fzi.1 (initial); 1.1.0 adds trust[] per round (bd-2ic)."
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "rounds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/round" }
+    },
+    "convergence": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "detected": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "estimated_rounds_remaining": { "type": ["integer", "null"], "minimum": 0 },
+        "signals": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "output_size_trend": { "type": "string", "enum": ["increasing", "decreasing", "stable", "unknown"] },
+            "change_velocity":   { "type": "string", "enum": ["increasing", "decreasing", "stable", "unknown"] },
+            "similarity_trend":  { "type": "string", "enum": ["increasing", "decreasing", "stable", "unknown"] }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "round": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["round", "timestamp"],
+      "properties": {
+        "round":     { "type": "integer", "minimum": 1 },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "documents": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "readme":         { "anyOf": [{ "$ref": "#/$defs/doc_metrics" }, { "type": "null" }] },
+            "spec":           { "anyOf": [{ "$ref": "#/$defs/doc_metrics" }, { "type": "null" }] },
+            "implementation": { "anyOf": [{ "$ref": "#/$defs/doc_metrics" }, { "type": "null" }] }
+          }
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["char_count", "word_count", "line_count"],
+          "properties": {
+            "path":       { "type": "string" },
+            "char_count": { "type": "integer", "minimum": 0 },
+            "word_count": { "type": "integer", "minimum": 0 },
+            "line_count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "changes_from_previous": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": true
+            }
+          ]
+        },
+        "trust": {
+          "description": "bd-2ic trust/provenance signals. Optional in v1.0.0, recommended in v1.1.0.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "manifest_present": {
+              "type": "boolean",
+              "description": "True iff the run had a manifest preamble (bd-3i5). When false, the model had no explicit binding to file hashes."
+            },
+            "manifest_hash": {
+              "type": ["string", "null"],
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "sha256 of the manifest section, copied from the run ledger (bd-246). Null if the manifest was not present or not recorded."
+            },
+            "prompt_hash": {
+              "type": ["string", "null"],
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "sha256 of the FINAL assembled prompt (manifest + template), copied from the run ledger."
+            },
+            "ack_present":  {
+              "type": "boolean",
+              "description": "True iff the model emitted an ACK block (bd-34z)."
+            },
+            "ack_complete": {
+              "type": "boolean",
+              "description": "True iff every required doc appears in the ACK block."
+            },
+            "ack_matches_manifest": {
+              "type": "boolean",
+              "description": "True iff ACK entries' sha256 + bytes match the recorded manifest."
+            },
+            "files_report_supported": {
+              "type": ["boolean", "null"],
+              "description": "True iff the installed Oracle exposes --files-report (bd-1tl). Null if detection wasn't attempted."
+            },
+            "files_report_ok": {
+              "type": ["boolean", "null"],
+              "description": "True iff oracle's files-report matched the expected attachment set. Null when files_report_supported is false/null."
+            },
+            "files_report_mismatch": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "missing":   { "type": "array", "items": { "type": "string" } },
+                    "extra":     { "type": "array", "items": { "type": "string" } },
+                    "size_mismatch": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              ],
+              "description": "Per-class mismatch detail when files_report_ok is false."
+            },
+            "ledger_present": {
+              "type": "boolean",
+              "description": "True iff .apr/rounds/<wf>/round_<N>.meta.json exists for this round (bd-246)."
+            },
+            "ledger_schema_version": {
+              "type": ["string", "null"],
+              "description": "Value of `schema_version` in the round's ledger (e.g. `apr_run_ledger.v1`)."
+            },
+            "secret_detected_count": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Number of secret-scan findings for this round (bd-1eq). Null if the scan didn't run."
+            },
+            "redaction_count": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Number of redactions applied by lib/redact.sh before the prompt was sent (bd-3ut). Null if redaction wasn't enabled."
+            },
+            "low_trust": {
+              "type": "boolean",
+              "description": "Derived flag, true iff ANY of: manifest_present==false, ack_present==false, ack_matches_manifest==false, files_report_ok==false, ledger_present==false. Consumers can branch on this single field for dashboard rendering."
+            }
+          }
+        }
+      }
+    },
+    "doc_metrics": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "path":             { "type": "string" },
+        "char_count":       { "type": "integer", "minimum": 0 },
+        "word_count":       { "type": "integer", "minimum": 0 },
+        "line_count":       { "type": "integer", "minimum": 0 },
+        "heading_count":    { "type": "integer", "minimum": 0 },
+        "code_block_count": { "type": "integer", "minimum": 0 },
+        "link_count":       { "type": "integer", "minimum": 0 },
+        "list_item_count":  { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
