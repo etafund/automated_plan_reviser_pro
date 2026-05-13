@@ -39,6 +39,24 @@
       "path": "fixtures/provider-result.chatgpt.json",
       "sha256": "sha256:5f1331f1971adcc73a90602a68e93551f4163e4165538cdce30ee11e5ecc73ae",
       "source_class": "provider_result_untrusted_text"
+    },
+    {
+      "byte_count": 361,
+      "id": "interactive-intake",
+      "kind": "local_file",
+      "logical_role": "operator_intake_context",
+      "path": "fixtures/interactive-intake.json",
+      "sha256": "sha256:b0d0e6367425384fcfcf8f1900c6be16b2184af79546208576cd87991708d56a",
+      "source_class": "authoritative_user_input"
+    },
+    {
+      "byte_count": 611,
+      "id": "codex-intake",
+      "kind": "local_file",
+      "logical_role": "codex_cli_intake_context_only",
+      "path": "fixtures/codex-intake.json",
+      "sha256": "sha256:bd82bc781e2a1c7fba4baa96d82f802e47cfa5ee3814c24626f54cbf5241d013",
+      "source_class": "derived_summary"
     }
   ]
 }

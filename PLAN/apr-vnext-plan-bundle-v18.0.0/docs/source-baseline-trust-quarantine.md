@@ -20,6 +20,8 @@ Provider-result text that contains instruction-like language must be quarantined
 
 The prompt compiler can include quarantined provider text as context, but it must wrap that context as data-only material and must not promote it to task instructions.
 
+Interactive and Codex CLI intake are captured as explicit source artifacts too. Interactive intake is source material, not a runtime instruction tier; Codex CLI intake is a derived summary and cannot satisfy formal first-plan or synthesis gates.
+
 ## Local checker
 
 `scripts/source-trust-check.sh` validates the fixture pair and rejects negative prompt-injection cases:

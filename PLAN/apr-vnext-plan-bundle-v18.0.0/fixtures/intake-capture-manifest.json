@@ -1,0 +1,40 @@
+{
+  "bundle_version": "v18.0.0",
+  "captures": [
+    {
+      "capture_id": "interactive-intake",
+      "capture_kind": "operator_intake",
+      "fixture_path": "fixtures/interactive-intake.json",
+      "inclusion_stage": [
+        "intake",
+        "prompt_context"
+      ],
+      "source_baseline_id": "interactive-intake",
+      "source_class": "authoritative_user_input",
+      "trust_tier": "source_material_not_instruction"
+    },
+    {
+      "capture_id": "codex-intake",
+      "capture_kind": "codex_cli_intake",
+      "fixture_path": "fixtures/codex-intake.json",
+      "inclusion_stage": [
+        "intake",
+        "fast_exploratory_draft_context",
+        "prompt_context"
+      ],
+      "route_impact": "cannot_satisfy_formal_first_plan_or_synthesis",
+      "source_baseline_id": "codex-intake",
+      "source_class": "derived_summary",
+      "trust_tier": "derived_summary"
+    }
+  ],
+  "policy": {
+    "codex_intake_eligible_for_synthesis": false,
+    "codex_intake_formal_first_plan": false,
+    "interactive_intake_is_runtime_instruction": false,
+    "provider_route_requirement_preserved": "chatgpt_pro_first_plan"
+  },
+  "schema_version": "intake_capture_manifest.v1",
+  "source_baseline": "fixtures/source-baseline.json",
+  "source_trust": "fixtures/source-trust.json"
+}

@@ -13,6 +13,7 @@ The user uses Codex CLI with GPT-5.5 Thinking xHigh, or the closest verified Cod
 - Oracle is never used for intake.
 - Direct OpenAI API is never used for intake.
 - The transcript is context, not proof of a formal first plan.
+- `fixtures/intake-capture-manifest.json` records Codex intake as `derived_summary_data_only` and `may_satisfy_formal_first_plan=false`.
 - In `fast`, a Codex CLI fast draft may be accepted as an exploratory draft, but it must still set `formal_first_plan: false` and `eligible_for_synthesis: false` until explicitly promoted or waived.
 - In `balanced` and `audit`, the formal `v01` first plan must still come from ChatGPT Pro / Extended Reasoning via Oracle browser automation.
 - Do not hard-code a possibly stale Codex model flag. Probe the installed Codex CLI or have the human select GPT-5.5 and xHigh/extra-high in the CLI.

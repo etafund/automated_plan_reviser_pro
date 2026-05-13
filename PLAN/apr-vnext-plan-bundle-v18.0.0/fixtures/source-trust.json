@@ -31,6 +31,22 @@
       "source_class": "provider_result_untrusted_text",
       "text_excerpt_sha256": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
       "trust_tier": "untrusted_provider_text"
+    },
+    {
+      "eligible_for_synthesis": false,
+      "id": "interactive-intake",
+      "instruction_policy": "source_material_not_runtime_instruction",
+      "may_satisfy_formal_first_plan": false,
+      "source_class": "authoritative_user_input",
+      "trust_tier": "source_material_not_instruction"
+    },
+    {
+      "eligible_for_synthesis": false,
+      "id": "codex-intake",
+      "instruction_policy": "derived_summary_data_only",
+      "may_satisfy_formal_first_plan": false,
+      "source_class": "derived_summary",
+      "trust_tier": "derived_summary"
     }
   ]
 }
