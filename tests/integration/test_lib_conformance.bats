@@ -180,7 +180,10 @@ EXEMPT_FROM_GUARD=(errors ui)
 # Today: apr_source_optional_libs sources all runtime libs directly. Pin the
 # CURRENT topology so a refactor surfaces.
 
-DIRECTLY_LOADED_BY_APR=(errors ui manifest cache size redact busy busy_wait queue template validate ack files_report ledger)
+DIRECTLY_LOADED_BY_APR=(errors ui manifest redact busy queue template validate ledger)
+# Utility/experimental libs that are intentionally not in apr's default runtime
+# source path until a production command path adopts them.
+OPTIONAL_STANDALONE_LIBS=(ack busy_wait cache files_report size)
 
 @test "C3: apr_source_optional_libs's load list matches the documented set" {
     local actual
@@ -218,6 +221,11 @@ DIRECTLY_LOADED_BY_APR=(errors ui manifest cache size redact busy busy_wait queu
             [[ "$d" == "$module" ]] && direct=1
         done
         if [[ "$direct" -eq 1 ]]; then continue; fi
+        local standalone=0
+        for d in "${OPTIONAL_STANDALONE_LIBS[@]}"; do
+            [[ "$d" == "$module" ]] && standalone=1
+        done
+        if [[ "$standalone" -eq 1 ]]; then continue; fi
 
         local found=0
         for d in "${DIRECTLY_LOADED_BY_APR[@]}"; do
