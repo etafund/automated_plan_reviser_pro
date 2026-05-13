@@ -45,6 +45,19 @@
 #           {"counts":{"queued":N,"running":N,"done":N,"failed":N,"canceled":N},
 #            "active":[entry_id,...]}
 #
+#   apr_lib_queue_next_queued <events_file>
+#       Emit the oldest currently queued entry as compact JSON, or return
+#       1 when no entry is ready. This is the dequeue selector used by
+#       the runner. It folds the full event log first, so entries that
+#       were started, finished, failed, or canceled are skipped.
+#
+#   apr_lib_queue_run_once <events_file> <lock_file> <runner_id> <command...>
+#       Acquire the workflow queue lock, pick the oldest queued entry,
+#       append a `start` event, run <command...>, then append `finish`
+#       or `fail`. The command receives APR_QUEUE_ENTRY_* environment
+#       variables. Returns the command exit code; returns 2 when the
+#       queue has no queued entries.
+#
 # Implementation notes
 # --------------------
 # - We do NOT depend on jq because not every install has it. State
@@ -305,4 +318,227 @@ for eid, s in by_id.items():
         active.append(eid)
 sys.stdout.write(json.dumps({"counts": counts, "active": sorted(active), "partial_trailing": bool(partial)}, sort_keys=True))
 PY
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_queue_next_queued <events_file>
+# -----------------------------------------------------------------------------
+apr_lib_queue_next_queued() {
+    local events_file="${1:?events_file required}"
+    if [[ ! -r "$events_file" ]]; then
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        printf '[apr] queue: python3 is required to select queued entries\n' >&2
+        return 1
+    fi
+    python3 - "$events_file" <<'PY'
+import json, sys
+events_file = sys.argv[1]
+by_id = {}
+order = []
+with open(events_file, encoding='utf-8') as f:
+    lines = f.readlines()
+for i, line in enumerate(lines):
+    is_last = (i == len(lines) - 1)
+    if is_last and not line.endswith('\n'):
+        sys.stderr.write(f'[apr] queue: ignoring partial trailing line {i+1} of {events_file}\n')
+        continue
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        e = json.loads(line)
+    except Exception:
+        if is_last:
+            sys.stderr.write(f'[apr] queue: ignoring unparseable line {i+1} of {events_file}\n')
+            continue
+        raise
+    eid = e.get('entry_id')
+    if not eid:
+        continue
+    if eid not in by_id:
+        by_id[eid] = {'entry_id': eid, 'status': 'unknown'}
+        order.append(eid)
+    state = by_id[eid]
+    ev = e.get('event')
+    if ev == 'enqueue':
+        state.update({
+            'status': 'queued',
+            'workflow': e.get('workflow'),
+            'round': e.get('round'),
+            'include_impl': e.get('include_impl', False),
+        })
+        if 'requested_slug' in e:
+            state['requested_slug'] = e['requested_slug']
+    elif ev == 'start':
+        if state.get('status') not in ('done', 'failed', 'canceled'):
+            state['status'] = 'running'
+    elif ev == 'finish':
+        if state.get('status') != 'canceled':
+            state['status'] = 'done'
+    elif ev == 'fail':
+        if state.get('status') != 'canceled':
+            state['status'] = 'failed'
+    elif ev == 'cancel':
+        state['status'] = 'canceled'
+for eid in order:
+    state = by_id[eid]
+    if state.get('status') == 'queued':
+        sys.stdout.write(json.dumps(state, sort_keys=True))
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+_apr_lib_queue_now_utc() {
+    date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+_apr_lib_queue_entry_fields() {
+    local entry_json="${1:?entry_json required}"
+    python3 - "$entry_json" <<'PY'
+import json, sys
+entry = json.loads(sys.argv[1])
+fields = [
+    entry.get('entry_id') or '',
+    entry.get('workflow') or '',
+    str(entry.get('round') if entry.get('round') is not None else ''),
+    'true' if entry.get('include_impl') is True else 'false',
+    entry.get('requested_slug') or '',
+]
+for field in fields:
+    print(field)
+PY
+}
+
+_apr_lib_queue_event_json() {
+    local event="${1:?event required}"
+    local entry_id="${2:?entry_id required}"
+    local workflow="${3:?workflow required}"
+    local round="${4:-}"
+    local include_impl="${5:-false}"
+    local runner_id="${6:-}"
+    local code="${7:-}"
+    local exit_code="${8:-}"
+    local output_path="${9:-}"
+    local slug="${10:-}"
+    local reason="${11:-}"
+    local ts
+    ts="$(_apr_lib_queue_now_utc)"
+
+    python3 - "$event" "$entry_id" "$workflow" "$round" "$include_impl" "$runner_id" "$code" "$exit_code" "$output_path" "$slug" "$reason" "$ts" <<'PY'
+import json, sys
+event, entry_id, workflow, round_value, include_impl, runner_id, code, exit_code, output_path, slug, reason, ts = sys.argv[1:]
+payload = {
+    'schema_version': 'apr_queue_event.v1',
+    'ts': ts,
+    'event': event,
+    'entry_id': entry_id,
+    'workflow': workflow,
+}
+if event == 'enqueue':
+    payload['round'] = int(round_value)
+    payload['include_impl'] = include_impl == 'true'
+elif event == 'start':
+    payload['runner_id'] = runner_id
+    payload['started_at'] = ts
+elif event == 'finish':
+    payload.update({
+        'ok': True,
+        'code': code or 'ok',
+        'exit_code': int(exit_code or '0'),
+        'output_path': output_path,
+        'slug': slug,
+        'finished_at': ts,
+    })
+elif event == 'fail':
+    payload.update({
+        'ok': False,
+        'code': code or 'queue_run_failed',
+        'exit_code': int(exit_code or '1'),
+        'finished_at': ts,
+        'reason': reason or f'runner command exited {exit_code or "1"}',
+    })
+print(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+PY
+}
+
+_apr_lib_queue_default_slug() {
+    local workflow="${1:?workflow required}"
+    local round="${2:?round required}"
+    local include_impl="${3:-false}"
+    local slug="apr-${workflow}-round-${round}"
+    if [[ "$include_impl" == "true" ]]; then
+        slug="${slug}-with-impl"
+    fi
+    printf '%s\n' "$slug"
+}
+
+_apr_lib_queue_default_output_path() {
+    local workflow="${1:?workflow required}"
+    local round="${2:?round required}"
+    printf '.apr/rounds/%s/round_%s.md\n' "$workflow" "$round"
+}
+
+_apr_lib_queue_run_once_locked() {
+    local events_file="${1:?events_file required}"
+    local runner_id="${2:?runner_id required}"
+    shift 2
+    if (($# == 0)); then
+        printf '[apr] queue: runner command required\n' >&2
+        return 64
+    fi
+
+    local entry_json
+    if ! entry_json="$(apr_lib_queue_next_queued "$events_file")"; then
+        printf '{"ran":false,"status":"empty"}\n'
+        return 2
+    fi
+
+    local fields=()
+    mapfile -t fields < <(_apr_lib_queue_entry_fields "$entry_json")
+    local entry_id="${fields[0]}"
+    local workflow="${fields[1]}"
+    local round="${fields[2]}"
+    local include_impl="${fields[3]}"
+    local requested_slug="${fields[4]}"
+    local slug output_path start_event finish_event fail_event
+    slug="${requested_slug:-$(_apr_lib_queue_default_slug "$workflow" "$round" "$include_impl")}"
+    output_path="$(_apr_lib_queue_default_output_path "$workflow" "$round")"
+
+    start_event="$(_apr_lib_queue_event_json start "$entry_id" "$workflow" "$round" "$include_impl" "$runner_id")"
+    apr_lib_queue_append "$events_file" "$start_event" || return 1
+
+    local rc=0
+    APR_QUEUE_ENTRY_JSON="$entry_json" \
+        APR_QUEUE_ENTRY_ID="$entry_id" \
+        APR_QUEUE_WORKFLOW="$workflow" \
+        APR_QUEUE_ROUND="$round" \
+        APR_QUEUE_INCLUDE_IMPL="$include_impl" \
+        APR_QUEUE_RUNNER_ID="$runner_id" \
+        "$@" || rc=$?
+
+    if (( rc == 0 )); then
+        finish_event="$(_apr_lib_queue_event_json finish "$entry_id" "$workflow" "$round" "$include_impl" "$runner_id" ok 0 "$output_path" "$slug")"
+        apr_lib_queue_append "$events_file" "$finish_event" || return 1
+        printf '{"ran":true,"entry_id":"%s","status":"done","exit_code":0,"slug":"%s","output_path":"%s"}\n' "$entry_id" "$slug" "$output_path"
+    else
+        fail_event="$(_apr_lib_queue_event_json fail "$entry_id" "$workflow" "$round" "$include_impl" "$runner_id" queue_run_failed "$rc" "" "" "runner command exited $rc")"
+        apr_lib_queue_append "$events_file" "$fail_event" || return 1
+        printf '{"ran":true,"entry_id":"%s","status":"failed","exit_code":%s,"code":"queue_run_failed"}\n' "$entry_id" "$rc"
+    fi
+
+    return "$rc"
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_queue_run_once <events_file> <lock_file> <runner_id> <command...>
+# -----------------------------------------------------------------------------
+apr_lib_queue_run_once() {
+    local events_file="${1:?events_file required}"
+    local lock_file="${2:?lock_file required}"
+    local runner_id="${3:?runner_id required}"
+    shift 3
+    apr_lib_queue_with_lock "$lock_file" _apr_lib_queue_run_once_locked "$events_file" "$runner_id" "$@"
 }

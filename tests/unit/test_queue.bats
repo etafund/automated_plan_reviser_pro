@@ -81,7 +81,6 @@ teardown() {
 @test "with_lock: runs the command and returns its exit code" {
     local lock="$BATS_TEST_TMPDIR/q.lock"
     apr_lib_queue_with_lock "$lock" true
-    [ "$?" -eq 0 ]
     apr_lib_queue_with_lock "$lock" false && status=0 || status=$?
     [ "$status" -eq 1 ]
 }
@@ -320,4 +319,120 @@ assert d['round'] == 2
 assert d['include_impl'] is True
 assert d['code'] == 'ok'
 "
+}
+
+# =============================================================================
+# runner primitives (bd-12b)
+# =============================================================================
+
+@test "next_queued: returns oldest entry that is still queued" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    local f="$BATS_TEST_TMPDIR/next.jsonl"
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:00Z","event":"enqueue","entry_id":"A","workflow":"wf","round":1,"include_impl":false}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:01Z","event":"start","entry_id":"A","workflow":"wf","runner_id":"r","started_at":"2026-05-12T00:00:01Z"}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:02Z","event":"enqueue","entry_id":"B","workflow":"wf","round":2,"include_impl":false}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:03Z","event":"cancel","entry_id":"B","workflow":"wf","canceled_at":"2026-05-12T00:00:03Z"}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:04Z","event":"enqueue","entry_id":"C","workflow":"wf","round":3,"include_impl":true,"requested_slug":"custom-slug"}'
+
+    local out
+    out=$(apr_lib_queue_next_queued "$f")
+    python3 -c "
+import json
+d = json.loads('''$out''')
+assert d['entry_id'] == 'C', d
+assert d['round'] == 3
+assert d['include_impl'] is True
+assert d['requested_slug'] == 'custom-slug'
+"
+}
+
+@test "run_once: marks start and finish, exposes entry environment, and returns success summary" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    local f="$BATS_TEST_TMPDIR/run-success.jsonl"
+    local lock="$BATS_TEST_TMPDIR/run-success.lock"
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:00Z","event":"enqueue","entry_id":"A","workflow":"default","round":3,"include_impl":false}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:01Z","event":"enqueue","entry_id":"B","workflow":"default","round":4,"include_impl":false}'
+
+    local out
+    # shellcheck disable=SC2016
+    out=$(apr_lib_queue_run_once "$f" "$lock" "runner-1" sh -c 'test "$APR_QUEUE_ENTRY_ID" = A && test "$APR_QUEUE_WORKFLOW" = default && test "$APR_QUEUE_ROUND" = 3 && test "$APR_QUEUE_INCLUDE_IMPL" = false')
+
+    python3 -c "
+import json
+d = json.loads('''$out''')
+assert d['ran'] is True, d
+assert d['entry_id'] == 'A'
+assert d['status'] == 'done'
+assert d['exit_code'] == 0
+assert d['slug'] == 'apr-default-round-3'
+assert d['output_path'] == '.apr/rounds/default/round_3.md'
+"
+
+    local state_a state_b
+    state_a=$(apr_lib_queue_derive "$f" A)
+    state_b=$(apr_lib_queue_derive "$f" B)
+    python3 -c "
+import json
+a = json.loads('''$state_a''')
+b = json.loads('''$state_b''')
+assert a['status'] == 'done', a
+assert a['runner_id'] == 'runner-1'
+assert a['code'] == 'ok'
+assert b['status'] == 'queued', b
+"
+}
+
+@test "run_once: marks fail and returns the runner command exit code" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    local f="$BATS_TEST_TMPDIR/run-fail.jsonl"
+    local lock="$BATS_TEST_TMPDIR/run-fail.lock"
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:00Z","event":"enqueue","entry_id":"F","workflow":"wf","round":9,"include_impl":true}'
+
+    local out rc
+    out=$(apr_lib_queue_run_once "$f" "$lock" "runner-fail" sh -c 'exit 7') && rc=0 || rc=$?
+    [ "$rc" -eq 7 ]
+
+    python3 -c "
+import json
+d = json.loads('''$out''')
+assert d['ran'] is True, d
+assert d['entry_id'] == 'F'
+assert d['status'] == 'failed'
+assert d['exit_code'] == 7
+assert d['code'] == 'queue_run_failed'
+"
+
+    local state
+    state=$(apr_lib_queue_derive "$f" F)
+    python3 -c "
+import json
+d = json.loads('''$state''')
+assert d['status'] == 'failed', d
+assert d['runner_id'] == 'runner-fail'
+assert d['code'] == 'queue_run_failed'
+assert d['exit_code'] == 7
+assert d['reason'] == 'runner command exited 7'
+"
+}
+
+@test "run_once: empty queue returns rc=2 and does not run command" {
+    if ! command -v python3 >/dev/null 2>&1; then
+        skip "python3 not available"
+    fi
+    local f="$BATS_TEST_TMPDIR/run-empty.jsonl"
+    local lock="$BATS_TEST_TMPDIR/run-empty.lock"
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:00Z","event":"enqueue","entry_id":"D","workflow":"wf","round":1,"include_impl":false}'
+    apr_lib_queue_append "$f" '{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T00:00:01Z","event":"finish","entry_id":"D","workflow":"wf","ok":true,"code":"ok","exit_code":0,"output_path":"o","slug":"s","finished_at":"2026-05-12T00:00:01Z"}'
+
+    local out rc
+    out=$(apr_lib_queue_run_once "$f" "$lock" "runner-empty" sh -c 'exit 99') && rc=0 || rc=$?
+    [ "$rc" -eq 2 ]
+    [[ "$out" == '{"ran":false,"status":"empty"}' ]]
+    [ "$(wc -l < "$f" | tr -d ' ')" = "2" ]
 }
