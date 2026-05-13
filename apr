@@ -4201,7 +4201,7 @@ metrics_lock() {
 
         local retries=0
 
-        while ! (set -C; echo "$" > "$lock_file") 2>/dev/null; do
+        while ! (set -C; echo "$$" > "$lock_file") 2>/dev/null; do
 
             # Check for stale lock
 
@@ -4209,7 +4209,7 @@ metrics_lock() {
 
             pid=$(cat "$lock_file" 2>/dev/null || echo "")
 
-            if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+            if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null; then
 
                 rm -f "$lock_file" 2>/dev/null
 
