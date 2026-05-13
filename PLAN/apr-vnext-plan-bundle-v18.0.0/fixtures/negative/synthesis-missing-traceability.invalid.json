@@ -1,0 +1,62 @@
+{
+  "artifact_index_path": "fixtures/artifact-index.json",
+  "bundle_version": "v18.0.0",
+  "conformance_matrix": [
+    {
+      "requirement_id": "SYN-MUST-TRACEABILITY",
+      "level": "MUST",
+      "status": "fail",
+      "summary": "Traceability is intentionally missing in this negative fixture."
+    }
+  ],
+  "degradation_labels": [],
+  "final_artifacts": [
+    {
+      "artifact_id": "plan-demo",
+      "kind": "plan_artifact",
+      "path": "fixtures/plan-artifact.json"
+    },
+    {
+      "artifact_id": "synthesis-output-demo",
+      "kind": "synthesis_provider_result",
+      "path": "fixtures/provider-result.chatgpt-synthesis.json"
+    }
+  ],
+  "final_handoff_gate": {
+    "approval_ids": [],
+    "required_evidence_ids": [
+      "evidence-demo-chatgpt_pro_synthesis"
+    ],
+    "state": "ready"
+  },
+  "implementation_notes": [],
+  "profile": "balanced",
+  "readiness_decision": {
+    "blocked_until_satisfied_by": [],
+    "ready": true,
+    "route_readiness_path": "fixtures/route-readiness.balanced.json",
+    "stage": "synthesis_prompt_submission"
+  },
+  "review_quorum_state": {
+    "degraded": false,
+    "optional_successes_observed": 0,
+    "optional_successes_required": 1,
+    "policy_path": "fixtures/review-quorum.balanced.json",
+    "required_independent_reviewers_satisfied": false,
+    "state": "not_met",
+    "waiver_ids": []
+  },
+  "run_id": "run-demo",
+  "schema_version": "synthesis_finalization.v1",
+  "synthesis_prompt": {
+    "comparison_id": "COMPARE-ROUTE-GATING",
+    "compiled_from": [],
+    "prompt_sha256": "sha256:69223c8fae80b46ec663079168f541e9308eb835d7720212f8222bf1f239cb18"
+  },
+  "synthesis_result": {
+    "evidence_id": "evidence-demo-chatgpt_pro_synthesis",
+    "path": "fixtures/provider-result.chatgpt-synthesis.json",
+    "provider_result_id": "provider-result-demo-chatgpt_pro_synthesis"
+  },
+  "synthesis_route_id": "chatgpt_pro_synthesis"
+}

@@ -1,0 +1,118 @@
+{
+  "artifact_index_path": "fixtures/artifact-index.json",
+  "bundle_version": "v18.0.0",
+  "conformance_matrix": [
+    {
+      "requirement_id": "SYN-MUST-READY",
+      "level": "MUST",
+      "status": "pass",
+      "summary": "Synthesis prompt submission gate is ready before invoking the synthesis route."
+    },
+    {
+      "requirement_id": "SYN-MUST-QUORUM",
+      "level": "MUST",
+      "status": "pass",
+      "summary": "Review quorum is met or explicitly waived before synthesis."
+    },
+    {
+      "requirement_id": "SYN-MUST-TRACEABILITY",
+      "level": "MUST",
+      "status": "pass",
+      "summary": "Final plan items retain source, provider, evidence, approval, test, and rollback links."
+    },
+    {
+      "requirement_id": "SYN-MUST-FINAL-HANDOFF",
+      "level": "MUST",
+      "status": "pass",
+      "summary": "Final handoff requires synthesis provider result and synthesis evidence after the call."
+    }
+  ],
+  "degradation_labels": [],
+  "final_artifacts": [
+    {
+      "artifact_id": "plan-demo",
+      "kind": "plan_artifact",
+      "path": "fixtures/plan-artifact.json"
+    },
+    {
+      "artifact_id": "traceability-demo",
+      "kind": "traceability_matrix",
+      "path": "fixtures/traceability.json"
+    },
+    {
+      "artifact_id": "approval-ledger-demo",
+      "kind": "approval_ledger",
+      "path": "fixtures/approval-ledger.json"
+    },
+    {
+      "artifact_id": "synthesis-output-demo",
+      "kind": "synthesis_provider_result",
+      "path": "fixtures/provider-result.chatgpt-synthesis.json"
+    },
+    {
+      "artifact_id": "log-bundle-demo",
+      "kind": "log_bundle",
+      "path": "fixtures/log-bundle.json"
+    }
+  ],
+  "final_handoff_gate": {
+    "approval_ids": [
+      "APR-DECISION-001"
+    ],
+    "required_evidence_ids": [
+      "evidence-demo-chatgpt_pro_synthesis"
+    ],
+    "state": "ready"
+  },
+  "implementation_notes": [
+    {
+      "note_id": "IMPL-SYNTHESIS-GATE",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "text": "Run synthesis only after normalized comparison, quorum, evidence, and traceability checks pass."
+    }
+  ],
+  "profile": "balanced",
+  "readiness_decision": {
+    "blocked_until_satisfied_by": [
+      "normalized_provider_results",
+      "compare_result",
+      "review_quorum_met_or_waived",
+      "verified_chatgpt_pro_first_plan_evidence",
+      "verified_gemini_deep_think_evidence"
+    ],
+    "ready": true,
+    "route_readiness_path": "fixtures/route-readiness.balanced.json",
+    "stage": "synthesis_prompt_submission"
+  },
+  "review_quorum_state": {
+    "degraded": false,
+    "optional_successes_observed": 1,
+    "optional_successes_required": 1,
+    "policy_path": "fixtures/review-quorum.balanced.json",
+    "required_independent_reviewers_satisfied": true,
+    "state": "met",
+    "waiver_ids": []
+  },
+  "run_id": "run-demo",
+  "schema_version": "synthesis_finalization.v1",
+  "synthesis_prompt": {
+    "comparison_id": "COMPARE-ROUTE-GATING",
+    "compiled_from": [
+      "provider-comparison-demo",
+      "traceability-demo",
+      "SRC-LOCAL-BRIEF",
+      "provider-result-demo-chatgpt_pro_first_plan",
+      "provider-result-demo-gemini_deep_think"
+    ],
+    "prompt_sha256": "sha256:69223c8fae80b46ec663079168f541e9308eb835d7720212f8222bf1f239cb18"
+  },
+  "synthesis_result": {
+    "evidence_id": "evidence-demo-chatgpt_pro_synthesis",
+    "path": "fixtures/provider-result.chatgpt-synthesis.json",
+    "provider_result_id": "provider-result-demo-chatgpt_pro_synthesis"
+  },
+  "synthesis_route_id": "chatgpt_pro_synthesis",
+  "traceability_path": "fixtures/traceability.json"
+}
