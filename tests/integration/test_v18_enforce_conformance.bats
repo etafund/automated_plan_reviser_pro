@@ -136,14 +136,7 @@ assert_envelope_shape() {
 # enforce-runtime-budget.py
 # ===========================================================================
 
-# NOTE: enforce-runtime-budget.py currently uses
-# `meta.tool == "runtime-budget-enforcer"` instead of the
-# `enforce-runtime-budget` convention used by the three sibling
-# enforce-* scripts. Tracked as a drift bug for pane-3/4. Pin the
-# current value here so the harness keeps catching real envelope
-# regressions; once the fix lands, flip this constant to
-# `enforce-runtime-budget` (and remove the carve-out).
-RUNTIME_BUDGET_TOOL="runtime-budget-enforcer"
+RUNTIME_BUDGET_TOOL="enforce-runtime-budget"
 
 @test "enforce/runtime-budget: balanced budget + balanced progress → schema-correct envelope" {
     local out="$ARTIFACT_DIR/budget_ok.json"
@@ -246,7 +239,7 @@ JSON
     declare -A want_tool=(
         [access]=enforce-access-policy
         [quorum]=enforce-review-quorum
-        [budget]="$RUNTIME_BUDGET_TOOL"        # see drift note above
+        [budget]="$RUNTIME_BUDGET_TOOL"
         [stage]=enforce-stage-readiness
     )
 
