@@ -1,0 +1,10 @@
+{
+  "code": "usage_error",
+  "data": {
+    "argument": "round",
+    "reason": "conflicting_values"
+  },
+  "hint": "Pass either --round N or positional N, not both",
+  "meta": {},
+  "ok": false
+}

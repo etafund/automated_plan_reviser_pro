@@ -1,0 +1,8 @@
+[error] Lint failed for workflow 'default' (2 error(s), 0 warning(s))
+ERROR [config_error]: Required document not found: nope-README.md
+  source: nope-README.md
+  hint:   Check the workflow yaml; paths are resolved relative to the project root.
+ERROR [config_error]: Required document not found: nope-SPECIFICATION.md
+  source: nope-SPECIFICATION.md
+  hint:   Check the workflow yaml; paths are resolved relative to the project root.
+APR_ERROR_CODE=validation_failed

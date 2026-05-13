@@ -1,0 +1,39 @@
+{
+  "code": "validation_failed",
+  "data": {
+    "errors": [
+      {
+        "code": "prompt_qc_failed",
+        "details": {
+          "hits": [
+            "template:17"
+          ],
+          "label": "template"
+        },
+        "hint": "Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass.",
+        "message": "Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these.",
+        "source": ".apr/workflows/default.yaml"
+      },
+      {
+        "code": "prompt_qc_failed",
+        "details": {
+          "hits": [
+            "template_with_impl:17"
+          ],
+          "label": "template_with_impl"
+        },
+        "hint": "Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass.",
+        "message": "Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these.",
+        "source": ".apr/workflows/default.yaml"
+      }
+    ],
+    "include_impl": false,
+    "round": "1",
+    "valid": false,
+    "warnings": [],
+    "workflow": "default"
+  },
+  "hint": "Fix lint errors before running",
+  "meta": {},
+  "ok": false
+}

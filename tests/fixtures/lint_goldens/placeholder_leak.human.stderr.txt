@@ -1,0 +1,8 @@
+[error] Lint failed for workflow 'default' (2 error(s), 0 warning(s))
+ERROR [prompt_qc_failed]: Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these.
+  source: .apr/workflows/default.yaml
+  hint:   Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass.
+ERROR [prompt_qc_failed]: Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these.
+  source: .apr/workflows/default.yaml
+  hint:   Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass.
+APR_ERROR_CODE=validation_failed

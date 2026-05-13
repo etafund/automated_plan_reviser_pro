@@ -1,0 +1,35 @@
+{
+  "code": "validation_failed",
+  "data": {
+    "errors": [
+      {
+        "code": "config_error",
+        "details": {
+          "path": "nope-README.md",
+          "required": true
+        },
+        "hint": "Check the workflow yaml; paths are resolved relative to the project root.",
+        "message": "Required document not found: nope-README.md",
+        "source": "nope-README.md"
+      },
+      {
+        "code": "config_error",
+        "details": {
+          "path": "nope-SPECIFICATION.md",
+          "required": true
+        },
+        "hint": "Check the workflow yaml; paths are resolved relative to the project root.",
+        "message": "Required document not found: nope-SPECIFICATION.md",
+        "source": "nope-SPECIFICATION.md"
+      }
+    ],
+    "include_impl": false,
+    "round": "1",
+    "valid": false,
+    "warnings": [],
+    "workflow": "default"
+  },
+  "hint": "Fix lint errors before running",
+  "meta": {},
+  "ok": false
+}

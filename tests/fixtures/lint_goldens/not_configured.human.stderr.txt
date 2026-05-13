@@ -1,0 +1,5 @@
+[error] Lint failed for workflow 'default' (1 error(s), 0 warning(s))
+ERROR [not_configured]: APR is not initialized in this project.
+  source: .apr
+  hint:   Run 'apr setup' or 'apr robot init' first.
+APR_ERROR_CODE=not_configured

@@ -1,0 +1,3 @@
+[error] Conflicting lint round values
+[info] Pass either --round N or positional N, not both
+APR_ERROR_CODE=usage_error
