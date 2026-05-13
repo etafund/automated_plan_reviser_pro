@@ -24,6 +24,30 @@ The workflow is intentionally subscription/browser/CLI based for ChatGPT, Gemini
 
 Do not silently substitute one access path for another. If a route is unavailable, return a blocked or degraded JSON envelope with `blocked_reason`, `next_command`, `fix_command`, and `retry_safe`.
 
+The bundle-level enforcement surface is:
+
+```bash
+PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-access-check.sh \
+  --slot chatgpt_pro_first_plan \
+  --access-path oracle_browser_remote_or_local \
+  --provider-family chatgpt \
+  --json
+```
+
+Provider adapters and future `apr providers readiness` implementations should call this checker before any live provider execution. A mismatch emits a v18 JSON envelope with `ok:false`, `blocked_reason`, `fix_command`, and `retry_safe:false`; successful checks echo the required policy fields so route logs can record what was enforced.
+
+Example prohibited substitution:
+
+```bash
+PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-access-check.sh \
+  --slot chatgpt_pro_first_plan \
+  --access-path openai_api \
+  --provider-family chatgpt \
+  --json
+```
+
+This must fail with `prohibited_api_substitution`, because `chatgpt_pro_first_plan` requires Oracle browser access and same-session evidence.
+
 
 ## v18 DeepSeek provider addition
 
