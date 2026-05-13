@@ -9,6 +9,7 @@ Provide durable, auditable state representation for multi-provider planning runs
 The `run-progress.schema.json` defines the core state machine of an execution. It records:
 - `current_stage`, `completed_stages`, and `pending_stages`
 - Overall `progress_percent`
+- Current timing via `elapsed_seconds`
 - Safe resume capability via `retry_safe` (boolean)
 - `user_visible_message` for terminal/TUI reporting.
 

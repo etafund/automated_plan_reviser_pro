@@ -21,6 +21,10 @@
     "current_stage": {
       "type": "string"
     },
+    "elapsed_seconds": {
+      "minimum": 0,
+      "type": "integer"
+    },
     "last_event_at": {
       "type": "string"
     },
@@ -71,7 +75,8 @@
     "user_visible_message",
     "next_command",
     "blocked_reason",
-    "retry_safe"
+    "retry_safe",
+    "elapsed_seconds"
   ],
   "title": "Run Progress",
   "type": "object",
