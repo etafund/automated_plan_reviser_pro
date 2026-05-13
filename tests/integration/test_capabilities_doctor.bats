@@ -162,6 +162,49 @@ teardown() {
     ' "$ARTIFACT_DIR/stdout.log" >/dev/null
 }
 
+@test "doctor: premortem includes local tool and oracle diagnostics" {
+    run_with_artifacts "$APR_SCRIPT" doctor --json
+    [[ "$status" -eq 0 ]]
+
+    jq -e '
+        .data.premortem.data.environment as $env
+        | ($env.commands | type == "array")
+        and any($env.commands[]; .name == "bash" and .required == true)
+        and any($env.commands[]; .name == "jq" and .required == true)
+        and (.data.premortem.data.environment.oracle.available | type == "boolean")
+        and (.data.premortem.data.environment.oracle.npx_fallback_available | type == "boolean")
+        and (.data.premortem.data.environment.oracle.required_flags | type == "object")
+        and (.data.premortem.data.environment.remote.configured == false)
+    ' "$ARTIFACT_DIR/stdout.log" >/dev/null
+}
+
+@test "doctor: remote host without token fails with stable token diagnostic" {
+    ORACLE_REMOTE_HOST=127.0.0.1:9 run_with_artifacts "$APR_SCRIPT" doctor --json
+    [[ "$status" -ne 0 ]]
+
+    jq -e '
+        .ok == false
+        and .data.premortem.ok == false
+        and .data.premortem.data.environment.remote.configured == true
+        and .data.premortem.data.environment.remote.token_present == false
+        and ([.errors[].error_code] | index("remote_browser_token_missing") != null)
+    ' "$ARTIFACT_DIR/stdout.log" >/dev/null
+}
+
+@test "doctor: unreachable remote host is classified separately from token state" {
+    ORACLE_REMOTE_HOST=127.0.0.1:9 ORACLE_REMOTE_TOKEN=test-token \
+        run_with_artifacts "$APR_SCRIPT" doctor --json
+    [[ "$status" -ne 0 ]]
+
+    jq -e '
+        .ok == false
+        and .data.premortem.data.environment.remote.token_present == true
+        and .data.premortem.data.environment.remote.connectivity.status == "unreachable"
+        and ([.errors[].error_code] | index("remote_browser_unreachable") != null)
+        and ([.errors[].error_code] | index("remote_browser_token_missing") == null)
+    ' "$ARTIFACT_DIR/stdout.log" >/dev/null
+}
+
 @test "doctor: --json output passes a single-document json.loads parse (strict)" {
     run_with_artifacts "$APR_SCRIPT" doctor --json
     [[ "$status" -eq 0 ]]
