@@ -125,8 +125,8 @@ apr_lib_redact_prompt_assign() {
     # Use awk for the multi-line PRIVATE KEY block — we walk lines and
     # replace everything between BEGIN/END markers with a single
     # sentinel line.
-    local out
-    out=$(printf '%s' "$text" | awk '
+    local redacted_text
+    redacted_text=$(printf '%s' "$text" | awk '
         BEGIN { in_block=0 }
         /^-----BEGIN [A-Z][A-Z ]*PRIVATE KEY-----/ {
             if (!in_block) { print "<<REDACTED:PRIVATE_KEY_BLOCK>>"; in_block=1 }
@@ -141,7 +141,7 @@ apr_lib_redact_prompt_assign() {
     ')
 
     # Single-line patterns via sed.
-    out=$(printf '%s' "$out" | sed -E \
+    redacted_text=$(printf '%s' "$redacted_text" | sed -E \
         -e 's/sk-[A-Za-z0-9_-]{20,}/<<REDACTED:OPENAI_KEY>>/g' \
         -e 's/github_pat_[A-Za-z0-9_]{20,}/<<REDACTED:GITHUB_FINEGRAINED>>/g' \
         -e 's/gh[posur]_[A-Za-z0-9_-]{20,}/<<REDACTED:GITHUB_TOKEN>>/g' \
@@ -162,7 +162,7 @@ apr_lib_redact_prompt_assign() {
     _apr_redact_bump AKIA_KEY          "$akia_n"
     _apr_redact_bump AUTH_BEARER_TOKEN "$auth_n"
 
-    printf -v "$target" '%s' "$out"
+    printf -v "$target" '%s' "$redacted_text"
     return 0
 }
 

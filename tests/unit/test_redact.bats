@@ -41,6 +41,12 @@ teardown() {
     [ "$APR_REDACT_COUNT" = "0" ]
 }
 
+@test "redact: apr_lib_redact_prompt works under set -u via command substitution" {
+    run bash -lc 'set -euo pipefail; source lib/redact.sh; out=$(apr_lib_redact_prompt "clean"); printf "%s\n" "$out"'
+    [ "$status" -eq 0 ]
+    [ "$output" = "clean" ]
+}
+
 # =============================================================================
 # OPENAI_KEY (sk-...)
 # =============================================================================
