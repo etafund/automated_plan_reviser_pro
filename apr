@@ -5023,11 +5023,17 @@ run_round() {
         local file_size
         file_size=$(du -h "$output_file" 2>/dev/null | cut -f1)
         print_warning "Round $round_num output already exists ($file_size)"
-        if can_prompt; then
+        if [[ "${BACKFILL_FORCE:-false}" == "true" ]]; then
+            print_info "Overwriting as requested by --force"
+        elif can_prompt; then
             if ! confirm "Overwrite existing output?"; then
                 print_info "Cancelled. Use a different round number or backup the file."
                 exit $EXIT_SUCCESS
             fi
+        else
+            print_error "Non-interactive run cannot overwrite existing output file: $output_file"
+            print_info "Use a different round number, delete the existing file, or use --force to overwrite."
+            exit $EXIT_CONFIG_ERROR
         fi
     fi
 
@@ -9505,6 +9511,14 @@ main() {
     EXPORT_SINCE=""
     BACKFILL_ALL=false
     BACKFILL_FORCE=false
+    CONFIRM="${APR_CONFIRM:-false}"
+    # Auto-enable confirm in interactive TTY if not explicitly disabled
+    if [[ "$CONFIRM" != "true" && -t 0 && -t 2 && "${APR_NO_CONFIRM:-0}" != "1" && "$ROBOT_MODE" != "true" ]]; then
+        # Check if we are running a command that would benefit from confirmation
+        if [[ "$command" == "run" || "$command" == "" ]]; then
+             CONFIRM=true
+        fi
+    fi
 
     local positional_args=()
 
@@ -9565,6 +9579,14 @@ main() {
                 ;;
             --login)
                 MANUAL_LOGIN=true
+                shift
+                ;;
+            --confirm)
+                CONFIRM=true
+                shift
+                ;;
+            --no-confirm)
+                CONFIRM=false
                 shift
                 ;;
             --keep-browser)
