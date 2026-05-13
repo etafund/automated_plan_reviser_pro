@@ -1,0 +1,2 @@
+{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T21:00:00Z","event":"enqueue","entry_id":"01HXQ5T0CANCEL12345678901XY","workflow":"default","round":4,"include_impl":false}
+{"schema_version":"apr_queue_event.v1","ts":"2026-05-12T21:00:42Z","event":"cancel","entry_id":"01HXQ5T0CANCEL12345678901XY","workflow":"default","canceled_at":"2026-05-12T21:00:42Z","reason":"operator"}

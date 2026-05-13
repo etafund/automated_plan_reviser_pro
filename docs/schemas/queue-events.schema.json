@@ -1,0 +1,118 @@
+{
+  "$id": "https://github.com/Dicklesworthstone/automated_plan_reviser_pro/contracts/queue-events.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "APR Queue Event (append-only JSONL line)",
+  "description": "One JSON object per line in .apr/queue/<workflow>.events.jsonl. State for a given entry is derived by folding events in append order. See docs/schemas/queue-events.md for the prose specification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ts", "event", "entry_id", "workflow"],
+  "properties": {
+    "schema_version": {
+      "const": "apr_queue_event.v1",
+      "description": "Stable identifier; bumped to v2 only on breaking changes."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the event was recorded."
+    },
+    "event": {
+      "type": "string",
+      "enum": ["enqueue", "start", "finish", "fail", "cancel"],
+      "description": "Event kind. See queue-events.md for state derivation rules."
+    },
+    "entry_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable unique identifier for the queue entry (ULID/UUID recommended)."
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Workflow name (matches .apr/workflows/<name>.yaml)."
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Round number for this entry. Required on `enqueue`."
+    },
+    "include_impl": {
+      "type": "boolean",
+      "description": "Whether to include the implementation document. Recorded at enqueue time."
+    },
+    "requested_slug": {
+      "type": ["string", "null"],
+      "description": "Operator-supplied slug override (optional)."
+    },
+    "runner_id": {
+      "type": ["string", "null"],
+      "description": "Identifier of the runner process that picked up this entry. Required on `start`."
+    },
+    "started_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Wall-clock timestamp when the round began. Required on `start`."
+    },
+    "finished_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Wall-clock timestamp when the round reached a terminal state. Required on `finish` / `fail` / `cancel`."
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "Required on `finish` and `fail`. Must be true on `finish` and false on `fail`."
+    },
+    "code": {
+      "type": "string",
+      "description": "Stable taxonomy code (per bd-3tj). Required on `finish` (`ok`) and `fail`."
+    },
+    "exit_code": {
+      "type": ["integer", "null"],
+      "description": "Process exit code of the underlying round. Required on `finish` and `fail`."
+    },
+    "output_path": {
+      "type": ["string", "null"],
+      "description": "Path to the round output markdown. Required on `finish` (success path); null on `fail`/`cancel`."
+    },
+    "slug": {
+      "type": ["string", "null"],
+      "description": "Actual oracle slug used for this run. Required on `finish` and `fail`."
+    },
+    "stderr_digest": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Optional sha256 of the truncated stderr excerpt (32 KB tail). Useful for debugging without committing logs."
+    },
+    "canceled_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Wall-clock timestamp when the cancel event was recorded. Required on `cancel`."
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Free-form reason for cancel/fail (e.g. `operator` for cancel, `busy_timeout` for fail). Never contains secrets."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "event": { "const": "enqueue" } } },
+      "then": { "required": ["round"] }
+    },
+    {
+      "if": { "properties": { "event": { "const": "start" } } },
+      "then": { "required": ["runner_id", "started_at"] }
+    },
+    {
+      "if": { "properties": { "event": { "const": "finish" } } },
+      "then": { "required": ["ok", "code", "exit_code", "finished_at"] }
+    },
+    {
+      "if": { "properties": { "event": { "const": "fail" } } },
+      "then": { "required": ["ok", "code", "exit_code", "finished_at"] }
+    },
+    {
+      "if": { "properties": { "event": { "const": "cancel" } } },
+      "then": { "required": ["canceled_at"] }
+    }
+  ]
+}
