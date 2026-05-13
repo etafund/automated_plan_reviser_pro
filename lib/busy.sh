@@ -183,3 +183,71 @@ apr_lib_busy_describe_file() {
     text=$(cat -- "$path" 2>/dev/null) || { printf '{"busy":false}\n'; return 0; }
     apr_lib_busy_describe_text "$text"
 }
+
+# -----------------------------------------------------------------------------
+# apr_lib_busy_robot_data <stderr_text> [<policy>] [<remote_host>]
+#                         [<retry_after_ms>] [<queue_entry_id>] [<elapsed_ms>]
+#
+# Build the .data object for a robot-mode busy response per the
+# bd-18u contract (docs/schemas/robot-busy.md). Returns:
+#   - 0 with a compact-JSON .data on stdout when busy detected;
+#   - 1 with NO output when not busy (caller falls through to its
+#     normal error path).
+#
+# Fields:
+#   busy             always true on the success path
+#   signature        the bd-3pu signature name that matched
+#   line             matched stderr line (200-byte truncated, JSON-escaped)
+#   policy           "error" (default) | "wait" | "enqueue"
+#   remote_host      string or null (passed in by caller; no introspection)
+#   retry_after_ms   int or null
+#   queue_entry_id   string or null
+#   elapsed_ms       int or null
+#
+# All optional args default to null when empty.
+# -----------------------------------------------------------------------------
+apr_lib_busy_robot_data() {
+    local text="${1-}"
+    local policy="${2:-error}"
+    local remote_host="${3-}"
+    local retry_after_ms="${4-}"
+    local queue_entry_id="${5-}"
+    local elapsed_ms="${6-}"
+
+    if [[ -z "$text" ]]; then
+        return 1
+    fi
+
+    # Reuse the describe helper to find the first matching signature.
+    local desc
+    desc=$(apr_lib_busy_describe_text "$text")
+    case "$desc" in
+        *'"busy":true'*) : ;;  # detected
+        *) return 1 ;;
+    esac
+
+    # Extract signature + line from the describe output. We hand-parse
+    # because we control the format above.
+    local signature line
+    signature="${desc#*\"signature\":\"}"; signature="${signature%%\"*}"
+    line="${desc#*\"line\":\"}"; line="${line%\"\}*}"
+    # Validate policy.
+    case "$policy" in
+        error|wait|enqueue) : ;;
+        *) policy="error" ;;
+    esac
+
+    # Encode optionals: empty -> null, present -> JSON value.
+    local rh_json="null"
+    [[ -n "$remote_host" ]] && rh_json="\"$(printf '%s' "$remote_host" | sed 's/\\/\\\\/g; s/"/\\"/g')\""
+    local qe_json="null"
+    [[ -n "$queue_entry_id" ]] && qe_json="\"$(printf '%s' "$queue_entry_id" | sed 's/\\/\\\\/g; s/"/\\"/g')\""
+    local ra_json="null"
+    [[ "$retry_after_ms" =~ ^[0-9]+$ ]] && ra_json="$retry_after_ms"
+    local el_json="null"
+    [[ "$elapsed_ms" =~ ^[0-9]+$ ]] && el_json="$elapsed_ms"
+
+    printf '{"busy":true,"signature":"%s","line":"%s","policy":"%s","remote_host":%s,"retry_after_ms":%s,"queue_entry_id":%s,"elapsed_ms":%s}' \
+        "$signature" "$line" "$policy" "$rh_json" "$ra_json" "$qe_json" "$el_json"
+    return 0
+}

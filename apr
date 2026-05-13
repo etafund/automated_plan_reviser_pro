@@ -427,7 +427,7 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/validate.sh; do
+    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/manifest.sh "$lib_dir"/busy.sh "$lib_dir"/validate.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -6333,10 +6333,44 @@ robot_fail() {
 
     # Unit tests source apr (with main() removed). In that mode we must not
     # `exit`, or we terminate the test runner. Return the mapped exit code.
-    if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    local caller="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
+    if [[ "$caller" != "$0" ]]; then
         return "$exit_code"
     fi
     exit "$exit_code"
+}
+
+# robot_emit_busy <stderr_text> [<policy>] [<remote_host>] [<retry_after_ms>] [<queue_entry_id>] [<elapsed_ms>]
+#
+# Robot-mode helper that detects Oracle's single-flight busy state and
+# emits a structured busy envelope (bd-18u, docs/schemas/robot-busy.md).
+# Returns the busy exit code (12) when busy was detected and the
+# envelope was emitted; returns 1 with no output when no busy signature
+# matched so the caller can fall through to normal error handling.
+#
+# Defaults: policy=APR_ROBOT_BUSY_POLICY (or "error" if unset). All
+# other fields default to null. The data block is built by
+# apr_lib_busy_robot_data (lib/busy.sh).
+robot_emit_busy() {
+    local text="${1-}"
+    local policy="${2:-${APR_ROBOT_BUSY_POLICY:-error}}"
+    local remote_host="${3-}"
+    local retry_after_ms="${4-}"
+    local queue_entry_id="${5-}"
+    local elapsed_ms="${6-}"
+
+    if ! command -v apr_lib_busy_robot_data >/dev/null 2>&1; then
+        # lib/busy.sh not loaded -> can't safely detect. Tell the caller
+        # to fall through.
+        return 1
+    fi
+
+    local data
+    if ! data=$(apr_lib_busy_robot_data "$text" "$policy" "$remote_host" "$retry_after_ms" "$queue_entry_id" "$elapsed_ms"); then
+        return 1
+    fi
+    robot_fail "busy" "$data" "Oracle is busy; retry, wait, or enqueue per APR_ROBOT_BUSY_POLICY"
+    return $?
 }
 
 # Robot: Status - System overview
