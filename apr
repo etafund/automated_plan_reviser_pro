@@ -6189,7 +6189,9 @@ show_history() {
         print_dim "Total: ${#round_entries[@]} round(s) recorded."
         echo "" >&2
         apr_ui_cta "Review" "apr show $latest_round"
-        apr_ui_cta "Compare" "apr diff $((latest_round-1)) $latest_round"
+        if (( latest_round > 1 )); then
+            apr_ui_cta "Compare" "apr diff $((latest_round-1)) $latest_round"
+        fi
     else
         apr_ui_cta "Show" "apr show $latest_round"
     fi
@@ -6261,7 +6263,9 @@ show_round() {
     fi
 
     echo "" >&2
-    apr_ui_cta "Compare" "apr diff $((round_num-1)) $round_num"
+    if (( round_num > 1 )); then
+        apr_ui_cta "Compare" "apr diff $((round_num-1)) $round_num"
+    fi
 }
 
 # -----------------------------------------------------------------------------
