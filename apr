@@ -35,6 +35,7 @@
 #   -d, --dry-run      Preview without sending to GPT Pro
 #   -r, --render       Render bundle for manual paste
 #   -c, --copy         Copy rendered bundle to clipboard
+#   --copy-prompt      Copy exact resolved prompt to clipboard
 #   --wait             Wait for completion (blocking)
 #   --login            Manual login mode (first-time setup)
 #   --keep-browser     Keep browser open after completion
@@ -2205,6 +2206,53 @@ with the git-diff style change versus the original plan shown below:
 "
 
     printf '%s\n' "$prompt"
+}
+
+# Copy exact text to the system clipboard without adding bytes. This is used
+# for resolved prompt debugging, so the clipboard payload must match the
+# existing `-p "$prompt"` Oracle argument exactly.
+copy_resolved_prompt_to_clipboard() {
+    local prompt="$1"
+
+    if command -v pbcopy >/dev/null 2>&1; then
+        if printf '%s' "$prompt" | pbcopy; then
+            print_success "Resolved prompt copied to clipboard (pbcopy)"
+            return 0
+        fi
+        print_warning "pbcopy failed; resolved prompt was not copied"
+        return 1
+    fi
+
+    if command -v wl-copy >/dev/null 2>&1; then
+        if printf '%s' "$prompt" | wl-copy; then
+            print_success "Resolved prompt copied to clipboard (wl-copy)"
+            return 0
+        fi
+        print_warning "wl-copy failed; resolved prompt was not copied"
+        return 1
+    fi
+
+    if command -v xclip >/dev/null 2>&1; then
+        if printf '%s' "$prompt" | xclip -selection clipboard; then
+            print_success "Resolved prompt copied to clipboard (xclip)"
+            return 0
+        fi
+        print_warning "xclip failed; resolved prompt was not copied"
+        return 1
+    fi
+
+    if command -v xsel >/dev/null 2>&1; then
+        if printf '%s' "$prompt" | xsel --clipboard --input; then
+            print_success "Resolved prompt copied to clipboard (xsel)"
+            return 0
+        fi
+        print_warning "xsel failed; resolved prompt was not copied"
+        return 1
+    fi
+
+    print_warning "No clipboard tool found (pbcopy, wl-copy, xclip, xsel)"
+    print_info "Use --render to print the resolved prompt to stdout."
+    return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -4835,6 +4883,7 @@ run_round() {
     local dry_run="${DRY_RUN:-false}"
     local render="${RENDER:-false}"
     local copy="${COPY:-false}"
+    local copy_prompt="${COPY_PROMPT:-false}"
     local show_manifest="${SHOW_MANIFEST:-false}"
     local manifest_only="${MANIFEST_ONLY:-false}"
     local wait_mode="${WAIT_MODE:-false}"
@@ -5111,6 +5160,9 @@ run_round() {
 
     # Dry run mode
     if [[ "$dry_run" == "true" ]]; then
+        if [[ "$copy_prompt" == "true" ]]; then
+            copy_resolved_prompt_to_clipboard "$prompt" || true
+        fi
         print_header "DRY RUN"
         echo "" >&2
         print_info "Would execute:"
@@ -5170,6 +5222,9 @@ run_round() {
 
     # Render mode
     if [[ "$render" == "true" ]]; then
+        if [[ "$copy_prompt" == "true" ]]; then
+            copy_resolved_prompt_to_clipboard "$prompt" || true
+        fi
         if [[ ${#ORACLE_CMD[@]} -eq 0 ]]; then
             if ! check_oracle; then
                 if [[ -n "${APR_NO_NPX:-}" ]]; then
@@ -8783,6 +8838,7 @@ show_help() {
         gum style --faint "  --show-manifest      Print manifest alongside render/dry-run output" >&2
         gum style --faint "  --manifest-only      Print only the manifest (no template/oracle); exit 0" >&2
         gum style --faint "  -c, --copy           Copy rendered bundle to clipboard" >&2
+        gum style --faint "  --copy-prompt        Copy exact resolved prompt in render/dry-run mode" >&2
         gum style --faint "  -o, --output FILE    Output to file (integrate/export)" >&2
         gum style --faint "  --wait               Wait for completion (blocking)" >&2
         gum style --faint "  --login              Manual login mode (first-time setup)" >&2
@@ -8913,6 +8969,7 @@ show_help() {
         echo "  --show-manifest      Print manifest alongside render/dry-run output" >&2
         echo "  --manifest-only      Print only the manifest (no template/oracle); exit 0" >&2
         echo "  -c, --copy           Copy rendered bundle to clipboard" >&2
+        echo "  --copy-prompt        Copy exact resolved prompt in render/dry-run mode" >&2
         echo "  -o, --output FILE    Output to file (integrate/export)" >&2
         echo "  --wait               Wait for completion (blocking)" >&2
         echo "  --login              Manual login mode (first-time setup)" >&2
@@ -9094,6 +9151,7 @@ main() {
     DRY_RUN=false
     RENDER=false
     COPY=false
+    COPY_PROMPT=false
     WAIT_MODE=false
     MANUAL_LOGIN=false
     KEEP_BROWSER=false
@@ -9157,6 +9215,10 @@ main() {
                 ;;
             -c|--copy)
                 COPY=true
+                shift
+                ;;
+            --copy-prompt)
+                COPY_PROMPT=true
                 shift
                 ;;
             --wait)

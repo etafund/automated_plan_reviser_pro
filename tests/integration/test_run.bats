@@ -75,6 +75,19 @@ EOF
     export PATH="$bin_dir:$PATH"
 }
 
+setup_pbcopy_mock() {
+    local bin_dir="$TEST_DIR/bin"
+    mkdir -p "$bin_dir"
+
+    cat > "$bin_dir/pbcopy" << 'EOF'
+#!/usr/bin/env bash
+cat > "${APR_TEST_CLIPBOARD_PATH:?}"
+EOF
+    chmod +x "$bin_dir/pbcopy"
+
+    export PATH="$bin_dir:$PATH"
+}
+
 setup_flaky_oracle() {
     local bin_dir="$TEST_DIR/flaky_oracle"
     mkdir -p "$bin_dir"
@@ -225,6 +238,52 @@ EOF
 
     [[ "$CAPTURED_STATUS" -eq 0 ]]
     [[ "$CAPTURED_STDERR" == *"--copy"* ]]
+}
+
+@test "run --dry-run --copy-prompt: copies the exact resolved prompt" {
+    # shellcheck disable=SC2030,SC2031  # Bats intentionally scopes each test in a subshell.
+    export APR_TEST_CLIPBOARD_PATH="$TEST_DIR/clipboard.prompt"
+    setup_pbcopy_mock
+
+    capture_streams "$APR_SCRIPT" run 1 --dry-run --copy-prompt
+
+    log_test_actual "exit code" "$CAPTURED_STATUS"
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+
+    [[ "$CAPTURED_STATUS" -eq 0 ]]
+    assert_file_exists "$APR_TEST_CLIPBOARD_PATH"
+    [[ "$CAPTURED_STDERR" == *"Resolved prompt copied to clipboard"* ]]
+
+    local expected copied
+    expected=$("$APR_SCRIPT" robot --compact render 1 | jq -r '.data.prompt_text')
+    copied=$(cat "$APR_TEST_CLIPBOARD_PATH")
+
+    [[ "$copied" == "$expected" ]]
+    [[ "$copied" == *"[APR Manifest]"* ]]
+    [[ "$copied" == *"Please analyze and provide feedback."* ]]
+}
+
+@test "run --render --copy-prompt: copies prompt and still renders bundle" {
+    # shellcheck disable=SC2030,SC2031  # Bats intentionally scopes each test in a subshell.
+    export APR_TEST_CLIPBOARD_PATH="$TEST_DIR/clipboard.render.prompt"
+    setup_pbcopy_mock
+
+    capture_streams "$APR_SCRIPT" run 1 --render --copy-prompt
+
+    log_test_actual "exit code" "$CAPTURED_STATUS"
+    log_test_actual "stdout" "$CAPTURED_STDOUT"
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+
+    [[ "$CAPTURED_STATUS" -eq 0 ]]
+    assert_file_exists "$APR_TEST_CLIPBOARD_PATH"
+    [[ "$CAPTURED_STDOUT" == *"Test Project"* ]]
+    [[ "$CAPTURED_STDERR" == *"Resolved prompt copied to clipboard"* ]]
+
+    local expected copied
+    expected=$("$APR_SCRIPT" robot --compact render 1 | jq -r '.data.prompt_text')
+    copied=$(cat "$APR_TEST_CLIPBOARD_PATH")
+
+    [[ "$copied" == "$expected" ]]
 }
 
 # =============================================================================
