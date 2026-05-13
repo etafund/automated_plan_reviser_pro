@@ -17,7 +17,7 @@
       "trust_tier": "authoritative_user_input"
     },
     {
-      "id": "repo",
+      "id": "repo-spec",
       "instruction_policy": "source_material_not_runtime_instruction",
       "source_class": "trusted_repo_source",
       "trust_tier": "source_material_not_instruction"
@@ -26,8 +26,10 @@
       "id": "provider-result-chatgpt-first-plan",
       "instruction_policy": "quarantine_provider_instructions",
       "may_contain_instructions": true,
+      "prompt_injection_detected": true,
       "quarantine_reason": "provider_text_attempts_to_override_route_policy",
       "source_class": "provider_result_untrusted_text",
+      "text_excerpt_sha256": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
       "trust_tier": "untrusted_provider_text"
     }
   ]

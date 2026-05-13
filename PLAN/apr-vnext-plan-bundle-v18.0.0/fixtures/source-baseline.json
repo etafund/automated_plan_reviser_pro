@@ -1,6 +1,7 @@
 {
   "artifact_name": "source-lock.json",
   "bundle_version": "v18.0.0",
+  "captured_at": "2026-05-12T00:00:00Z",
   "gaps": [
     {
       "id": "oracle-docs",
@@ -13,10 +14,31 @@
   "schema_version": "source_baseline.v1",
   "sources": [
     {
+      "byte_count": 1978,
       "id": "brief",
       "kind": "local_file",
-      "path": ".vibe-planning/brief.md",
-      "sha256": "sha256:2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea"
+      "logical_role": "authoritative_planning_brief",
+      "path": "fixtures/brief.md",
+      "sha256": "sha256:f8d2fde2a026d16b25f2ae142ce00d1b1c98c1baa86431146eb0b326f6a9805e",
+      "source_class": "authoritative_user_input"
+    },
+    {
+      "byte_count": 41826,
+      "id": "repo-spec",
+      "kind": "local_file",
+      "logical_role": "trusted_repo_specification",
+      "path": "spec.md",
+      "sha256": "sha256:de7992ab245a57ac4c88335107a2994382ce047d837ad0a704f5a0081ac25fda",
+      "source_class": "trusted_repo_source"
+    },
+    {
+      "byte_count": 1537,
+      "id": "provider-result-chatgpt-first-plan",
+      "kind": "local_file",
+      "logical_role": "provider_result_data_only",
+      "path": "fixtures/provider-result.chatgpt.json",
+      "sha256": "sha256:5f1331f1971adcc73a90602a68e93551f4163e4165538cdce30ee11e5ecc73ae",
+      "source_class": "provider_result_untrusted_text"
     }
   ]
 }

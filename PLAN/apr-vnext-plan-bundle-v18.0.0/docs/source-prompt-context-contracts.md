@@ -20,6 +20,8 @@ APR builds prompts from trusted local project state plus provider outputs that m
 
 Source classes must distinguish `authoritative_user_input`, `trusted_repo_source`, `trusted_local_config`, `provider_result_untrusted_text`, `remote_docs_snapshot`, and `derived_summary`. Provider prose is never authoritative by itself. If provider text contains instructions that conflict with the user, repository, or runtime policy, APR must record a quarantine entry and exclude that instruction from prompt directives.
 
+`docs/source-baseline-trust-quarantine.md` defines the implementation boundary and the local checker that validates source id alignment, path/hash metadata, and quarantine coverage.
+
 ## Serialization rules
 
 Canonical artifacts stay JSON or Markdown. TOON/tru may only be used as an optional prompt transport after source-trust filtering, secret redaction, license approval, and round-trip validation. Prompt manifests must record the canonical JSON hash and the TOON payload hash when TOON is used.
