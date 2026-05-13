@@ -281,6 +281,58 @@ load '../helpers/test_helper.bash'
     [[ "$EXIT_UPDATE_ERROR" -eq 11 ]]
 }
 
+@test "EXIT_BUSY_ERROR is defined as 12" {
+    load_apr_functions
+
+    [[ "$EXIT_BUSY_ERROR" -eq 12 ]]
+}
+
+@test "apr_exit_code_for_code: maps taxonomy codes to stable exits" {
+    load_apr_functions
+
+    run apr_exit_code_for_code ok
+    assert_success
+    assert_output "0"
+
+    run apr_exit_code_for_code usage_error
+    assert_success
+    assert_output "2"
+
+    run apr_exit_code_for_code dependency_missing
+    assert_success
+    assert_output "3"
+
+    run apr_exit_code_for_code validation_failed
+    assert_success
+    assert_output "4"
+
+    run apr_exit_code_for_code attachment_mismatch
+    assert_success
+    assert_output "4"
+
+    run apr_exit_code_for_code network_error
+    assert_success
+    assert_output "10"
+
+    run apr_exit_code_for_code update_error
+    assert_success
+    assert_output "11"
+
+    run apr_exit_code_for_code busy
+    assert_success
+    assert_output "12"
+}
+
+@test "apr_is_error_code: recognizes canonical taxonomy only" {
+    load_apr_functions
+
+    run apr_is_error_code config_error
+    assert_success
+
+    run apr_is_error_code made_up_error
+    assert_failure
+}
+
 # =============================================================================
 # Error Message Format
 # =============================================================================
@@ -298,6 +350,22 @@ load '../helpers/test_helper.bash'
 
     # Should include some error indicator
     [[ "$output" =~ ([Ee]rror|[Uu]nknown|[Ii]nvalid) ]]
+}
+
+@test "human usage errors include APR_ERROR_CODE tag" {
+    capture_streams "$APR_SCRIPT" invalidcommand
+    status="$CAPTURED_STATUS"
+
+    assert_exit_code 2
+    [[ "$CAPTURED_STDERR" == *"APR_ERROR_CODE=usage_error"* ]]
+}
+
+@test "human missing round errors include APR_ERROR_CODE tag" {
+    capture_streams "$APR_SCRIPT" run
+    status="$CAPTURED_STATUS"
+
+    assert_exit_code 2
+    [[ "$CAPTURED_STDERR" == *"APR_ERROR_CODE=usage_error"* ]]
 }
 
 @test "usage errors include help hint" {

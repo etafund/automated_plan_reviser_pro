@@ -348,3 +348,61 @@ teardown() {
     capture_streams print_info "test"
     [[ -n "$CAPTURED_STDERR" ]]
 }
+
+# =============================================================================
+# Layout and Capability Detection Tests
+# =============================================================================
+
+@test "apr_layout_mode: non-TTY auto defaults to compact" {
+    export APR_LAYOUT=auto
+
+    run apr_layout_mode
+    assert_success
+    assert_output "compact"
+}
+
+@test "apr_layout_mode: APR_LAYOUT overrides mode" {
+    export APR_LAYOUT=desktop
+
+    run apr_layout_mode
+    assert_success
+    assert_output "desktop"
+
+    export APR_LAYOUT=compact
+    run apr_layout_mode
+    assert_success
+    assert_output "compact"
+}
+
+@test "apr_layout_mode: invalid override returns compact and fails" {
+    export APR_LAYOUT=sideways
+
+    run apr_layout_mode
+    assert_failure
+    assert_output "compact"
+}
+
+@test "terminal size helpers honor deterministic env overrides" {
+    export APR_TERM_COLUMNS=123
+    export APR_TERM_LINES=31
+
+    run apr_term_width
+    assert_success
+    assert_output "123"
+
+    run apr_term_height
+    assert_success
+    assert_output "31"
+}
+
+@test "apr_ui_symbol: plain output uses ASCII-safe tokens" {
+    export APR_NO_UNICODE=1
+
+    run apr_ui_symbol success
+    assert_success
+    assert_output "[ok]"
+
+    run apr_ui_symbol error
+    assert_success
+    assert_output "[error]"
+}

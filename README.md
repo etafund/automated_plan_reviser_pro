@@ -128,7 +128,7 @@ apr robot history              # List completed rounds
 apr robot help                 # API docs
 
 Response: {ok, code, data, hint?, meta: {v, ts}}
-Codes: ok | usage_error | not_configured | config_error | validation_failed | dependency_missing | busy | internal_error
+Codes: ok | usage_error | not_configured | config_error | validation_failed | dependency_missing | busy | network_error | update_error | attachment_mismatch | not_implemented | internal_error
 
 ## Key Paths
 
@@ -988,8 +988,22 @@ On failure, `ok` becomes `false` and `code` contains a stable, semantic failure 
 | `busy` | Single-flight/busy (lock held / cannot proceed without waiting) |
 | `network_error` | Network/remote unreachable (when remote mode is used) |
 | `update_error` | Self-update failed |
+| `attachment_mismatch` | Attachment or files-report mismatch |
 | `not_implemented` | Feature unsupported in this install |
 | `internal_error` | Unexpected failure (bug/unknown state) |
+
+Exit-code mapping is stable:
+
+| Code(s) | Exit |
+|---------|------|
+| `ok` | `0` |
+| `not_implemented`, `internal_error` | `1` |
+| `usage_error` | `2` |
+| `dependency_missing` | `3` |
+| `not_configured`, `config_error`, `validation_failed`, `attachment_mismatch` | `4` |
+| `network_error` | `10` |
+| `update_error` | `11` |
+| `busy` | `12` |
 
 ### Commands
 
@@ -1593,6 +1607,49 @@ APR uses [gum](https://github.com/charmbracelet/gum) for beautiful terminal outp
 ╰────────────────────────────────────────────────────────────╯
 ```
 
+### Design Language
+
+APR uses one compact set of visual tokens across gum, ANSI, and plain output:
+
+| Token | Gum | ANSI | Plain / non-TTY |
+|-------|-----|------|-----------------|
+| Success | green `✓` | green `✓` | `[ok]` |
+| Warning | amber `⚠` | yellow `⚠` | `[warn]` |
+| Error | red `✗` | red `✗` | `[error]` |
+| Info | blue `ℹ` | cyan `ℹ` | `[info]` |
+| Primary heading | bold amber | bold yellow | uppercase text |
+| Divider | rounded/double gum border | colored rule | ASCII `=` or `-` |
+
+Tone is deliberately terse and actionable:
+
+| Level | Pattern |
+|-------|---------|
+| Success | State what completed and where the artifact landed. |
+| Warning | Name the degraded behavior and the fallback APR chose. |
+| Error | Name the failure, emit `APR_ERROR_CODE=<code>`, then give the exact next command or setting to fix it. |
+| Info | Provide monitoring commands, paths, or recovery commands. |
+
+### Responsive Layout
+
+`apr` chooses one layout mode through a single helper:
+
+| Mode | Selection |
+|------|-----------|
+| `desktop` | TTY stderr, width `>=100`, height `>=24`, and color/gum allowed |
+| `compact` | Narrow/mobile terminals, non-TTY output, CI, `TERM=dumb`, or explicit compact override |
+| `auto` | Default; detects terminal size and stream capability |
+
+Overrides:
+
+```bash
+APR_LAYOUT=compact apr status
+APR_LAYOUT=desktop apr stats
+apr status --compact
+apr stats --layout desktop
+```
+
+Thresholds are configurable with `APR_DESKTOP_MIN_COLS` and `APR_DESKTOP_MIN_ROWS`. `NO_COLOR=1`, `APR_NO_GUM=1`, and `APR_NO_UNICODE=1` progressively remove styling without changing stdout data contracts.
+
 ### Styling Behavior
 
 | Environment | Output Style |
@@ -1602,6 +1659,8 @@ APR uses [gum](https://github.com/charmbracelet/gum) for beautiful terminal outp
 | Non-TTY (piped) | Plain text |
 | CI environment (`$CI` set) | Plain text |
 | `APR_NO_GUM=1` | Force ANSI fallback |
+| `APR_LAYOUT=compact` or `--compact` | Compact single-column human layout |
+| `APR_NO_UNICODE=1` | ASCII symbols and rules |
 | `NO_COLOR=1` | Plain text (no colors) |
 
 ### Accessibility
@@ -1708,6 +1767,10 @@ These control how APR patches Oracle to tolerate GPT Pro Extended Thinking pause
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `APR_NO_GUM` | Disable gum even if available | unset |
+| `APR_LAYOUT` | Layout override: `auto`, `desktop`, `compact` | `auto` |
+| `APR_DESKTOP_MIN_COLS` | Desktop layout width threshold | `100` |
+| `APR_DESKTOP_MIN_ROWS` | Desktop layout height threshold | `24` |
+| `APR_NO_UNICODE` | Use ASCII status symbols and rules | unset |
 | `NO_COLOR` | Disable colored output (accessibility) | unset |
 | `CI` | Detected CI environment (disables gum) | unset |
 | `PAGER` | Pager for `apr show` output | `less` or `more` |
