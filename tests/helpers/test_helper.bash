@@ -128,12 +128,21 @@ load_apr_functions() {
     # Extract everything except the final main call
     sed '/^main "\$@"$/d' "$APR_SCRIPT" > "$apr_functions"
 
+    # apr_source_optional_libs (in apr) derives its lib/ search path
+    # from BASH_SOURCE[0], which here points at the sed-stripped copy
+    # under $TEST_DIR — not the real project. Without the override,
+    # lib/validate.sh and lib/manifest.sh never load in tests, so any
+    # apr code path that calls apr_lib_* helpers (e.g. robot_run via
+    # bd-3i5's manifest preamble work) hits 'command not found' errors
+    # that corrupt JSON-only stdout assertions. Bead 5m5z.
+    export APR_LIB_DIR="$PROJECT_ROOT/lib"
+
     # Source the functions
     # shellcheck disable=SC1090
     source "$apr_functions"
 
     _APR_FUNCTIONS_LOADED=true
-    log_test_step "load" "Loaded APR functions from $APR_SCRIPT"
+    log_test_step "load" "Loaded APR functions from $APR_SCRIPT (APR_LIB_DIR=$APR_LIB_DIR)"
 }
 
 # =============================================================================
