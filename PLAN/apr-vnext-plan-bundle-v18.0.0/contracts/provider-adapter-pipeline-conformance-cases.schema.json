@@ -1,0 +1,66 @@
+{
+  "$id": "https://example.invalid/v18/contracts/provider-adapter-pipeline-conformance-cases.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "bundle_version": {
+      "const": "v18.0.0"
+    },
+    "cases": {
+      "items": {
+        "properties": {
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expect_exit": {
+            "type": "integer"
+          },
+          "expect_ok": {
+            "type": "boolean"
+          },
+          "fixture": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "command",
+              "fixture_schema"
+            ]
+          },
+          "provider_result_pointer": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "provider_adapter_pipeline_conformance_cases.v1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "bundle_version",
+    "cases"
+  ],
+  "title": "Provider Adapter Pipeline Conformance Cases",
+  "type": "object",
+  "x-bundle-version": "v18.0.0"
+}

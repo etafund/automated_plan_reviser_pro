@@ -7,6 +7,7 @@
     "route_plan"
   ],
   "current_stage": "preflight",
+  "elapsed_seconds": 0,
   "last_event_at": "2026-05-13T00:00:00Z",
   "next_command": "oracle remote doctor --json",
   "pending_stages": [
