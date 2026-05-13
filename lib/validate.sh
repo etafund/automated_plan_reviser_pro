@@ -240,7 +240,7 @@ apr_lib_validate_emit_human() {
         for i in "${!_APR_VALIDATE_ERR_CODE[@]}"; do
             [[ $first -eq 0 ]] && echo "" >&2
             if declare -F apr_ui_error >/dev/null; then
-                apr_ui_error "${_APR_VALIDATE_ERR_MSG[$i]}" \
+                apr_ui_error "ERROR [${_APR_VALIDATE_ERR_CODE[$i]}]: ${_APR_VALIDATE_ERR_MSG[$i]}" \
                     "code: ${_APR_VALIDATE_ERR_CODE[$i]}${_APR_VALIDATE_ERR_SOURCE[$i]:+; source: ${_APR_VALIDATE_ERR_SOURCE[$i]}}${_APR_VALIDATE_ERR_HINT[$i]:+; hint: ${_APR_VALIDATE_ERR_HINT[$i]}}"
             else
                 printf 'ERROR [%s]: %s\n' "${_APR_VALIDATE_ERR_CODE[$i]}" "${_APR_VALIDATE_ERR_MSG[$i]}"
@@ -254,7 +254,7 @@ apr_lib_validate_emit_human() {
         for i in "${!_APR_VALIDATE_WARN_CODE[@]}"; do
             [[ $first -eq 0 ]] && echo "" >&2
             if declare -F apr_ui_warn >/dev/null; then
-                apr_ui_warn "${_APR_VALIDATE_WARN_MSG[$i]}" \
+                apr_ui_warn "WARN [${_APR_VALIDATE_WARN_CODE[$i]}]: ${_APR_VALIDATE_WARN_MSG[$i]}" \
                     "code: ${_APR_VALIDATE_WARN_CODE[$i]}${_APR_VALIDATE_WARN_SOURCE[$i]:+; source: ${_APR_VALIDATE_WARN_SOURCE[$i]}}${_APR_VALIDATE_WARN_HINT[$i]:+; hint: ${_APR_VALIDATE_WARN_HINT[$i]}}"
             else
                 printf 'WARN  [%s]: %s\n' "${_APR_VALIDATE_WARN_CODE[$i]}" "${_APR_VALIDATE_WARN_MSG[$i]}"

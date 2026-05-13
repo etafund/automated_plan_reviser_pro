@@ -1,0 +1,28 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "fcp-review",
+  "round": 2,
+  "slug": "apr-fcp-review-r2-cancel",
+  "run_id": "01HZW8XK0K0K0K0K0K0K0K0K04",
+  "started_at": "2026-05-12T18:00:00Z",
+  "finished_at": "2026-05-12T18:00:30Z",
+  "duration_ms": 30000,
+  "state": "canceled",
+  "files": [],
+  "prompt_hash": "0000000000000000000000000000000000000000000000000000000000000002",
+  "oracle": {
+    "engine": "browser",
+    "model": "5.2 Thinking"
+  },
+  "outcome": {
+    "ok": false,
+    "code": "canceled",
+    "exit_code": null,
+    "output_path": null
+  },
+  "execution": {
+    "retries_count": 0,
+    "busy_wait_count": 0,
+    "busy_wait_total_ms": 0
+  }
+}

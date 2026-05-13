@@ -1,0 +1,99 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "fcp-review",
+  "round": 3,
+  "slug": "apr-fcp-review-r3-efgh",
+  "run_id": "01HZW8XK0K0K0K0K0K0K0K0K02",
+  "started_at": "2026-05-12T18:00:00Z",
+  "finished_at": "2026-05-12T18:03:30Z",
+  "duration_ms": 210000,
+  "state": "finished",
+  "files": [
+    {
+      "path": "README.md",
+      "basename": "README.md",
+      "bytes": 5420,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "SPEC.md",
+      "basename": "SPEC.md",
+      "bytes": 14820,
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "inclusion_reason": "required"
+    },
+    {
+      "path": "docs/impl.md",
+      "basename": "impl.md",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inclusion_reason": "skipped",
+      "skipped_reason": "not-due-yet"
+    }
+  ],
+  "prompt_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "manifest_hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+  "oracle": {
+    "engine": "browser",
+    "model": "5.2 Thinking",
+    "thinking_time": "extended",
+    "remote_host": "mac-mini-3",
+    "oracle_flags_used": ["--engine", "browser", "--slug", "apr-fcp-review-r3-efgh"]
+  },
+  "outcome": {
+    "ok": true,
+    "code": "ok",
+    "exit_code": 0,
+    "output_path": ".apr/rounds/fcp-review/round_3.md"
+  },
+  "execution": {
+    "retries_count": 1,
+    "busy_wait_count": 2,
+    "busy_wait_total_ms": 4500
+  },
+  "warnings": [
+    {
+      "code": "lint_long_line",
+      "message": "Line 412 exceeds 120 chars",
+      "hint": null,
+      "source": "lint"
+    }
+  ],
+  "overrides": [
+    {
+      "name": "--allow-placeholders",
+      "value": false,
+      "reason": null
+    }
+  ],
+  "trim": null,
+  "redaction": {
+    "redactor": "apr-redact-v1",
+    "redactions_count": 0
+  },
+  "trust": {
+    "files_report_ok": true,
+    "files_report_supported": true
+  },
+  "files_report": {
+    "reported_files": [
+      {
+        "path": "README.md",
+        "status": "ok",
+        "bytes": 5420
+      },
+      {
+        "path": "SPEC.md",
+        "status": "ok",
+        "bytes": 14820
+      }
+    ],
+    "mismatches": {
+      "missing": [],
+      "extra": [],
+      "size_mismatch": []
+    },
+    "parse_error": null
+  }
+}

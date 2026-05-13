@@ -1,0 +1,36 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "fcp-review",
+  "round": 4,
+  "slug": "apr-fcp-review-r4-busy",
+  "run_id": "01HZW8XK0K0K0K0K0K0K0K0K03",
+  "started_at": "2026-05-12T18:00:00Z",
+  "finished_at": "2026-05-12T18:08:00Z",
+  "duration_ms": 480000,
+  "state": "failed",
+  "files": [
+    {
+      "path": "README.md",
+      "basename": "README.md",
+      "bytes": 5420,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "inclusion_reason": "required"
+    }
+  ],
+  "prompt_hash": "0000000000000000000000000000000000000000000000000000000000000001",
+  "oracle": {
+    "engine": "browser",
+    "model": "5.2 Thinking"
+  },
+  "outcome": {
+    "ok": false,
+    "code": "busy",
+    "exit_code": 12,
+    "output_path": null
+  },
+  "execution": {
+    "retries_count": 3,
+    "busy_wait_count": 6,
+    "busy_wait_total_ms": 90000
+  }
+}

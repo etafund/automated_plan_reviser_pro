@@ -1,0 +1,14 @@
+{
+  "schema_version": "apr_run_ledger.v1",
+  "workflow": "x",
+  "round": 1,
+  "slug": "x",
+  "run_id": "x",
+  "started_at": "2026-05-12T18:00:00Z",
+  "state": "started",
+  "files": [],
+  "prompt_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "oracle": {"engine": "browser"},
+  "outcome": {"ok": false, "code": "started"},
+  "execution": {"retries_count": 0, "busy_wait_count": 0, "busy_wait_total_ms": 0}
+}
