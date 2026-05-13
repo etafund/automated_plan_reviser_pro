@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2030,SC2031
 # test_ui_lib.bats
 #
 # Bead automated_plan_reviser_pro-y6d4 — direct unit + fuzz coverage
@@ -289,6 +290,7 @@ teardown() {
     [[ "$rule"  == "-"  ]] || { echo "light_rule: got='$rule'" >&2; return 1; }
 
     # And the same under APR_NO_UNICODE=1 explicit opt-out.
+    # shellcheck disable=SC2034  # Read by apr_unicode_enabled in this shell.
     APR_NO_UNICODE=1
     arrow=$(apr_ui_symbol arrow)
     [[ "$arrow" == "->" ]]
@@ -318,6 +320,96 @@ teardown() {
         echo "glob leak from unknown branch: got='$got'" >&2
         return 1
     }
+}
+
+# ===========================================================================
+# Feedback / progress / CTA primitives
+# ===========================================================================
+
+@test "apr_ui_feedback_line: status output goes to stderr only" {
+    local stdout_file="$ARTIFACT_DIR/feedback.out"
+    local stderr_file="$ARTIFACT_DIR/feedback.err"
+
+    apr_ui_feedback_line success "Saved workflow" >"$stdout_file" 2>"$stderr_file"
+
+    [[ ! -s "$stdout_file" ]]
+    grep -Fxq "[ok] Saved workflow" "$stderr_file"
+}
+
+@test "apr_ui_feedback_line: quiet mode suppresses non-fatal status output" {
+    local stdout_file="$ARTIFACT_DIR/quiet.out"
+    local stderr_file="$ARTIFACT_DIR/quiet.err"
+
+    QUIET_MODE=true apr_ui_feedback_line info "Checking status" >"$stdout_file" 2>"$stderr_file"
+
+    [[ ! -s "$stdout_file" ]]
+    [[ ! -s "$stderr_file" ]]
+}
+
+@test "apr_ui_feedback_line: quiet mode still emits warning and error output" {
+    local stdout_file="$ARTIFACT_DIR/quiet_fatal.out"
+    local stderr_file="$ARTIFACT_DIR/quiet_fatal.err"
+
+    QUIET_MODE=true apr_ui_feedback_line warning "Low confidence" >"$stdout_file" 2>"$stderr_file"
+    QUIET_MODE=true apr_ui_feedback_line error "Run failed" >>"$stdout_file" 2>>"$stderr_file"
+
+    [[ ! -s "$stdout_file" ]]
+    grep -Fxq "[warn] Low confidence" "$stderr_file"
+    grep -Fxq "[error] Run failed" "$stderr_file"
+}
+
+@test "apr_ui_progress: non-TTY fallback is a single stderr line and no spinner" {
+    local stdout_file="$ARTIFACT_DIR/progress.out"
+    local stderr_file="$ARTIFACT_DIR/progress.err"
+
+    apr_ui_progress "Rendering prompt bundle" >"$stdout_file" 2>"$stderr_file"
+
+    [[ ! -s "$stdout_file" ]]
+    [[ "$(wc -l < "$stderr_file")" -eq 1 ]]
+    grep -Fxq -- "-> Rendering prompt bundle" "$stderr_file"
+}
+
+@test "apr_ui_cta: renders a stable next-action footer line with optional hint" {
+    local stdout_file="$ARTIFACT_DIR/cta.out"
+    local stderr_file="$ARTIFACT_DIR/cta.err"
+
+    apr_ui_cta "Next" "apr status" "Review active Oracle sessions" >"$stdout_file" 2>"$stderr_file"
+
+    [[ ! -s "$stdout_file" ]]
+    grep -Fxq -- "-> Next: apr status" "$stderr_file"
+    grep -Fxq "  Review active Oracle sessions" "$stderr_file"
+}
+
+@test "apr_ui_cta: missing command is a usage failure with no output" {
+    local stdout_file="$ARTIFACT_DIR/cta_missing.out"
+    local stderr_file="$ARTIFACT_DIR/cta_missing.err"
+    local rc=0
+
+    apr_ui_cta "Next" "" >"$stdout_file" 2>"$stderr_file" || rc=$?
+
+    [[ "$rc" -eq 2 ]]
+    [[ ! -s "$stdout_file" ]]
+    [[ ! -s "$stderr_file" ]]
+}
+
+@test "apr_ui_run_step: non-TTY mode avoids gum spinner and propagates command status" {
+    local stdout_file="$ARTIFACT_DIR/run_step.out"
+    local stderr_file="$ARTIFACT_DIR/run_step.err"
+    local gum_marker="$ARTIFACT_DIR/gum_was_called"
+    local rc=0
+
+    gum() {
+        printf 'gum called\n' >"$gum_marker"
+        return 99
+    }
+    export -f gum
+
+    apr_ui_run_step "Executing command" false >"$stdout_file" 2>"$stderr_file" || rc=$?
+
+    [[ "$rc" -eq 1 ]]
+    [[ ! -e "$gum_marker" ]]
+    [[ ! -s "$stdout_file" ]]
+    grep -Fxq -- "-> Executing command" "$stderr_file"
 }
 
 # ===========================================================================

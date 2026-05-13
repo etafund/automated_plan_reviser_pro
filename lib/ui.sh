@@ -173,6 +173,97 @@ apr_ui_symbol() {
     esac
 }
 
+apr_ui_quiet_enabled() {
+    [[ "${QUIET_MODE:-false}" == "true" ]]
+}
+
+apr_ui_feedback_symbol() {
+    local kind="$1"
+
+    case "$kind" in
+        success) apr_ui_symbol success ;;
+        error) apr_ui_symbol error ;;
+        warning|warn) apr_ui_symbol warning ;;
+        info) apr_ui_symbol info ;;
+        progress|cta) apr_ui_symbol arrow ;;
+        *) apr_ui_symbol info ;;
+    esac
+}
+
+apr_ui_feedback_color() {
+    local kind="$1"
+
+    case "$kind" in
+        success) printf '%s\n' "82" ;;
+        error) printf '%s\n' "196" ;;
+        warning|warn) printf '%s\n' "214" ;;
+        progress|info|cta) printf '%s\n' "39" ;;
+        *) printf '%s\n' "39" ;;
+    esac
+}
+
+apr_ui_feedback_line() {
+    local kind="${1:-info}"
+    local message="${2:-}"
+    local hint="${3:-}"
+    local symbol color
+
+    case "$kind" in
+        error|warning|warn) ;;
+        *)
+            apr_ui_quiet_enabled && return 0
+            ;;
+    esac
+
+    symbol=$(apr_ui_feedback_symbol "$kind")
+    if apr_gum_allowed; then
+        color=$(apr_ui_feedback_color "$kind")
+        gum style --foreground "$color" "$symbol $message" >&2
+    else
+        printf '%s %s\n' "$symbol" "$message" >&2
+    fi
+
+    if [[ -n "$hint" ]]; then
+        if apr_gum_allowed; then
+            gum style --faint "  $hint" >&2
+        else
+            printf '  %s\n' "$hint" >&2
+        fi
+    fi
+}
+
+apr_ui_progress() {
+    apr_ui_feedback_line progress "$1" "${2:-}"
+}
+
+apr_ui_cta() {
+    local label="${1:-Next}"
+    local command_text="${2:-}"
+    local hint="${3:-}"
+
+    [[ -n "$command_text" ]] || return 2
+    apr_ui_quiet_enabled && return 0
+
+    apr_ui_feedback_line cta "$label: $command_text" "$hint"
+}
+
+apr_ui_run_step() {
+    local message="${1:-Working}"
+    shift || true
+
+    if [[ $# -eq 0 ]]; then
+        apr_ui_progress "$message"
+        return 0
+    fi
+
+    if apr_gum_allowed && ! apr_ui_quiet_enabled; then
+        gum spin --spinner dot --title "$message" -- "$@"
+    else
+        apr_ui_progress "$message"
+        "$@"
+    fi
+}
+
 apr_set_layout_override() {
     local value="${1:-auto}"
     value="${value,,}"
