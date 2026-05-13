@@ -4191,10 +4191,10 @@ run_round() {
             robot_json false "validation_failed" "$(jq -nc --arg err "$PROMPT_QC_REASON" '{errors:[$err]}')" \
                 "Fix workflow template before running"
         else
-            print_error "Prompt quality check failed: $PROMPT_QC_REASON"
-            echo "" >&2
             echo "$PROMPT_QC_DETAILS" >&2
-            apr_emit_error_code_tag "validation_failed"
+            apr_fail "validation_failed" \
+                "Prompt quality check failed: $PROMPT_QC_REASON" \
+                "Remove {{...}} placeholders from your workflow template."
         fi
         return "$(apr_exit_code_for_code validation_failed)"
     fi

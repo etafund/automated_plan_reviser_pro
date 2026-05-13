@@ -365,6 +365,14 @@ assert_human_failure() {
     assert_human_failure "validation_failed" 4
 }
 
+@test "contract: human apr run prompt QC branch with --no-lint still tags validation_failed" {
+    install_workflow_placeholder_leak
+    run_with_artifacts "$APR_SCRIPT" run 1 --dry-run --no-lint
+    assert_human_failure "validation_failed" 4
+    grep -Fq "Why this fails:" "$ARTIFACT_DIR/stderr.log"
+    grep -Fq "Remove {{...}} placeholders from your workflow template." "$ARTIFACT_DIR/stderr.log"
+}
+
 @test "contract: human apr run without oracle → APR_ERROR_CODE=dependency_missing (exit 3)" {
     install_workflow_valid
 
