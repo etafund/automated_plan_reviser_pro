@@ -323,7 +323,7 @@ apr_source_optional_libs() {
     lib_dir="${APR_LIB_DIR:-${script_dir:+$script_dir/lib}}"
     [[ -n "$lib_dir" && -d "$lib_dir" ]] || return 0
 
-    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh; do
+    for lib_file in "$lib_dir"/errors.sh "$lib_dir"/ui.sh "$lib_dir"/validate.sh; do
         [[ -f "$lib_file" ]] || continue
         # shellcheck source=/dev/null
         source "$lib_file"
@@ -1863,6 +1863,212 @@ with the git-diff style change versus the original plan shown below:
 "
 
     printf '%s\n' "$prompt"
+}
+
+# -----------------------------------------------------------------------------
+# Lint / Validation Command
+# -----------------------------------------------------------------------------
+
+lint_collect_findings() {
+    local round_num="${1:-}"
+    local workflow="${2:-default}"
+    local include_impl="${3:-false}"
+
+    apr_lib_validate_init
+
+    if [[ -n "$round_num" ]] && ! is_non_negative_int "$round_num"; then
+        apr_lib_validate_add_error \
+            "usage_error" \
+            "Round must be a non-negative integer: $round_num" \
+            "Use: apr lint --round <N>" \
+            "" \
+            "null"
+    fi
+
+    if [[ ! -d "$CONFIG_DIR" || ! -f "$CONFIG_DIR/config.yaml" ]]; then
+        apr_lib_validate_add_error \
+            "not_configured" \
+            "APR is not initialized in this project." \
+            "Run 'apr setup' or 'apr robot init' first." \
+            "$CONFIG_DIR" \
+            "null"
+        return 0
+    fi
+
+    local wf_file="$CONFIG_DIR/workflows/${workflow}.yaml"
+    if [[ ! -f "$wf_file" ]]; then
+        apr_lib_validate_add_error \
+            "validation_failed" \
+            "Workflow '$workflow' not found." \
+            "Run 'apr list' to see configured workflows, or pass -w <workflow>." \
+            "$wf_file" \
+            "null"
+        return 0
+    fi
+
+    local readme_path spec_path impl_path model output_dir
+    readme_path=$(yaml_unquote "$(get_config_value "readme" "$wf_file" 2>/dev/null || echo "")")
+    spec_path=$(yaml_unquote "$(get_config_value "spec" "$wf_file" 2>/dev/null || echo "")")
+    impl_path=$(yaml_unquote "$(get_config_value "implementation" "$wf_file" 2>/dev/null || echo "")")
+    model=$(yaml_unquote "$(get_config_value "model" "$wf_file" 2>/dev/null || echo "")")
+    output_dir=$(yaml_unquote "$(get_config_value "output_dir" "$wf_file" 2>/dev/null || echo "")")
+
+    if [[ -z "$readme_path" ]]; then
+        apr_lib_validate_add_error "config_error" \
+            "Workflow is missing a README document path." \
+            "Add documents.readme (or readme) to $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+    if [[ -z "$spec_path" ]]; then
+        apr_lib_validate_add_error "config_error" \
+            "Workflow is missing a specification document path." \
+            "Add documents.spec (or spec) to $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+    if [[ -z "$model" ]]; then
+        apr_lib_validate_add_error "config_error" \
+            "Workflow is missing oracle.model." \
+            "Add oracle.model to $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+    if [[ -z "$output_dir" ]]; then
+        apr_lib_validate_add_error "config_error" \
+            "Workflow is missing rounds.output_dir." \
+            "Add rounds.output_dir to $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+
+    local required_paths="$readme_path|$spec_path"
+    local optional_paths=""
+    if [[ "$include_impl" == "true" ]]; then
+        if [[ -z "$impl_path" ]]; then
+            apr_lib_validate_add_error "config_error" \
+                "Implementation document was requested, but the workflow has no implementation path." \
+                "Add documents.implementation to $wf_file or omit --include-impl." \
+                "$wf_file" \
+                "null"
+        else
+            required_paths+="|$impl_path"
+        fi
+    elif [[ -n "$impl_path" ]]; then
+        optional_paths="$impl_path"
+    fi
+    apr_lib_validate_documents_exist "$required_paths" "$optional_paths"
+
+    local prompt_no_impl prompt_with_impl
+    if prompt_no_impl=$(build_revision_prompt "false" "$wf_file" 2>/dev/null); then
+        apr_lib_validate_prompt_qc "$prompt_no_impl" "template" "$wf_file"
+    else
+        apr_lib_validate_add_error "validation_failed" \
+            "Failed to render workflow template." \
+            "Check template syntax in $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+
+    if prompt_with_impl=$(build_revision_prompt "true" "$wf_file" 2>/dev/null); then
+        apr_lib_validate_prompt_qc "$prompt_with_impl" "template_with_impl" "$wf_file"
+    else
+        apr_lib_validate_add_error "validation_failed" \
+            "Failed to render implementation workflow template." \
+            "Check template_with_impl syntax in $wf_file." \
+            "$wf_file" \
+            "null"
+    fi
+
+    if [[ -n "$round_num" ]] && is_non_negative_int "$round_num" && [[ "$round_num" -gt 1 && -n "$output_dir" ]]; then
+        local prev=$((round_num - 1))
+        local prev_file="$output_dir/round_${prev}.md"
+        if [[ ! -f "$prev_file" ]]; then
+            apr_lib_validate_add_warning "validation_warning" \
+                "Previous round $prev was not found." \
+                "This is allowed, but GPT will not have prior-round context." \
+                "$prev_file" \
+                "null"
+        fi
+    fi
+}
+
+lint_result_code() {
+    if ! apr_lib_validate_has_errors; then
+        printf 'ok\n'
+        return 0
+    fi
+
+    local first_code
+    first_code=$(apr_lib_validate_first_error_code)
+    case "$first_code" in
+        usage_error|not_configured)
+            printf '%s\n' "$first_code"
+            ;;
+        *)
+            printf 'validation_failed\n'
+            ;;
+    esac
+}
+
+lint_data_json() {
+    local workflow="$1"
+    local round_num="$2"
+    local include_impl="$3"
+    local findings_json valid=false
+
+    findings_json=$(apr_lib_validate_emit_json)
+    if ! apr_lib_validate_has_errors; then
+        valid=true
+    fi
+
+    jq -nc \
+        --argjson findings "$findings_json" \
+        --argjson valid "$valid" \
+        --arg workflow "$workflow" \
+        --arg round "$round_num" \
+        --argjson include_impl "$include_impl" \
+        '{
+            valid: $valid,
+            workflow: $workflow,
+            round: (if $round == "" then null else $round end),
+            include_impl: $include_impl,
+            errors: $findings.errors,
+            warnings: $findings.warnings
+        }'
+}
+
+cmd_lint() {
+    local round_arg="${1:-}"
+    if [[ $# -gt 1 ]]; then
+        apr_fail "usage_error" "Too many arguments for lint" "Usage: apr lint [--round N] [N]"
+    fi
+    if [[ -n "${LINT_ROUND:-}" && -n "$round_arg" && "$LINT_ROUND" != "$round_arg" ]]; then
+        apr_fail "usage_error" "Conflicting lint round values" "Pass either --round N or positional N, not both"
+    fi
+
+    local round_num="${LINT_ROUND:-$round_arg}"
+    local workflow="${WORKFLOW:-default}"
+    lint_collect_findings "$round_num" "$workflow" "$INCLUDE_IMPL"
+
+    local code error_count warning_count
+    code=$(lint_result_code)
+    error_count=$(apr_lib_validate_error_count)
+    warning_count=$(apr_lib_validate_warning_count)
+
+    if [[ "$code" == "ok" ]]; then
+        print_success "Lint passed for workflow '$workflow'"
+        if [[ "$warning_count" -gt 0 ]]; then
+            print_warning "Lint completed with $warning_count warning(s)"
+            apr_lib_validate_emit_human >&2
+        fi
+        return 0
+    fi
+
+    print_error "Lint failed for workflow '$workflow' ($error_count error(s), $warning_count warning(s))"
+    apr_lib_validate_emit_human >&2
+    apr_emit_error_code_tag "$code"
+    return "$(apr_exit_code_for_code "$code")"
 }
 
 # -----------------------------------------------------------------------------
@@ -5870,6 +6076,32 @@ robot_validate() {
     fi
 }
 
+# Robot: Lint - First-class validation entry point without Oracle dependency
+robot_lint() {
+    local round_arg="${1:-}"
+    if [[ -n "${LINT_ROUND:-}" && -n "$round_arg" && "$LINT_ROUND" != "$round_arg" ]]; then
+        robot_fail "usage_error" '{"argument":"round","reason":"conflicting_values"}' \
+            "Pass either --round N or positional N, not both"
+        return $?
+    fi
+
+    local round_num="${LINT_ROUND:-$round_arg}"
+    local workflow="${WORKFLOW:-default}"
+    local include_impl="${INCLUDE_IMPL:-false}"
+
+    lint_collect_findings "$round_num" "$workflow" "$include_impl"
+
+    local data code
+    data=$(lint_data_json "$workflow" "$round_num" "$include_impl")
+    code=$(lint_result_code)
+
+    if [[ "$code" == "ok" ]]; then
+        robot_json true "ok" "$data"
+    else
+        robot_fail "$code" "$data" "Fix lint errors before running"
+    fi
+}
+
 # Robot: Run - Execute a revision round
 robot_run() {
     local round_num="${1:-}"
@@ -6427,6 +6659,7 @@ robot_help() {
             status: "System overview (config, workflows, oracle)",
             workflows: "List all workflows with descriptions",
             init: "Initialize .apr directory",
+            lint: "Validate workflow, documents, and prompt templates without invoking Oracle",
             validate: "Pre-run validation (apr robot validate <round>)",
             run: "Execute revision round (apr robot run <round>)",
             show: "View round content (apr robot show <round>)",
@@ -6439,6 +6672,7 @@ robot_help() {
         options: {
             "-w, --workflow NAME": "Workflow name (default: from config)",
             "-i, --include-impl": "Include implementation document",
+            "--round N": "Round context for lint warnings",
             "-f, --format FORMAT": "Robot output format: json or toon (env: APR_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)",
             "--stats": "Show token savings statistics (JSON vs TOON byte comparison)",
             "--compact": "Minified JSON output"
@@ -6464,6 +6698,7 @@ robot_help() {
         examples: [
             "apr robot status",
             "apr robot workflows",
+            "apr robot lint --round 1 -w myspec",
             "apr robot validate 1 -w myspec",
             "apr robot run 1",
             "apr robot show 3 -w myspec",
@@ -6521,6 +6756,18 @@ cmd_robot() {
                 ROBOT_FORMAT_OVERRIDE="${1#*=}"
                 shift
                 ;;
+            --round)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    robot_fail "usage_error" '{"option":"--round"}' "Option --round requires a value"
+                    return $?
+                fi
+                LINT_ROUND="$2"
+                shift 2
+                ;;
+            --round=*)
+                LINT_ROUND="${1#*=}"
+                shift
+                ;;
             -w|--workflow)
                 if [[ -z "${2:-}" ]]; then
                     robot_fail "usage_error" '{"option":"-w"}' "Option -w requires a workflow name"
@@ -6573,6 +6820,9 @@ cmd_robot() {
             ;;
         init)
             robot_init
+            ;;
+        lint)
+            robot_lint "${robot_args[0]:-}"
             ;;
         validate)
             robot_validate "${robot_args[0]:-}"
@@ -6627,6 +6877,7 @@ show_help() {
         gum style --foreground 214 --bold "COMMANDS" >&2
         gum style --foreground 39 "  Core Workflow" >&2
         echo "    $(gum style --foreground 82 'run <round>')        Run a revision round" >&2
+        echo "    $(gum style --foreground 82 'lint [round]')       Validate workflow/docs/templates" >&2
         echo "    $(gum style --foreground 82 'setup')              Interactive workflow setup wizard" >&2
         echo "    $(gum style --foreground 82 'status')             Check Oracle session status" >&2
         echo "    $(gum style --foreground 82 'attach <session>')   Attach to running/completed session" >&2
@@ -6652,6 +6903,7 @@ show_help() {
         gum style --foreground 214 --bold "OPTIONS" >&2
         gum style --faint "  -w, --workflow NAME  Workflow to use (default: from config)" >&2
         gum style --faint "  -i, --include-impl   Include implementation document" >&2
+        gum style --faint "  --round NUM          Round context for lint warnings" >&2
         gum style --faint "  -d, --dry-run        Preview without sending to GPT Pro" >&2
         gum style --faint "  -r, --render         Render bundle for manual paste" >&2
         gum style --faint "  -c, --copy           Copy rendered bundle to clipboard" >&2
@@ -6699,6 +6951,9 @@ show_help() {
         gum style --foreground 39 "  # Run revision round 1" >&2
         echo "  apr run 1" >&2
         echo "" >&2
+        gum style --foreground 39 "  # Validate before running" >&2
+        echo "  apr lint --round 1" >&2
+        echo "" >&2
         gum style --foreground 39 "  # Run with implementation doc" >&2
         echo "  apr run 2 --include-impl" >&2
         echo "" >&2
@@ -6742,6 +6997,7 @@ show_help() {
         echo -e "${BOLD}${YELLOW}COMMANDS${NC}" >&2
         echo -e "  ${CYAN}Core Workflow${NC}" >&2
         echo -e "    ${GREEN}run <round>${NC}        Run a revision round" >&2
+        echo -e "    ${GREEN}lint [round]${NC}       Validate workflow/docs/templates" >&2
         echo -e "    ${GREEN}setup${NC}              Interactive workflow setup wizard" >&2
         echo -e "    ${GREEN}status${NC}             Check Oracle session status" >&2
         echo -e "    ${GREEN}attach <session>${NC}   Attach to running/completed session" >&2
@@ -6766,6 +7022,7 @@ show_help() {
         echo -e "${BOLD}${YELLOW}OPTIONS${NC}" >&2
         echo "  -w, --workflow NAME  Workflow to use (default: from config)" >&2
         echo "  -i, --include-impl   Include implementation document" >&2
+        echo "  --round NUM          Round context for lint warnings" >&2
         echo "  -d, --dry-run        Preview without sending to GPT Pro" >&2
         echo "  -r, --render         Render bundle for manual paste" >&2
         echo "  -c, --copy           Copy rendered bundle to clipboard" >&2
@@ -6806,6 +7063,7 @@ show_help() {
         echo "" >&2
         echo -e "${BOLD}${YELLOW}EXAMPLES${NC}" >&2
         echo "  apr setup                    # First-time setup" >&2
+        echo "  apr lint --round 1           # Validate before running" >&2
         echo "  apr run 1                    # Run revision round 1" >&2
         echo "  apr run 2 --include-impl     # Include implementation doc" >&2
         echo "  apr run 1 --login --wait     # First run with manual login" >&2
@@ -6920,6 +7178,7 @@ main() {
     # Global options
     WORKFLOW=""
     INCLUDE_IMPL=false
+    LINT_ROUND=""
     DRY_RUN=false
     RENDER=false
     COPY=false
@@ -6954,6 +7213,17 @@ main() {
                 ;;
             -i|--include-impl)
                 INCLUDE_IMPL=true
+                shift
+                ;;
+            --round)
+                if [[ -z "${2:-}" || "$2" == -* ]]; then
+                    apr_fail "usage_error" "Option --round requires a value" "Usage: apr lint --round <number>"
+                fi
+                LINT_ROUND="$2"
+                shift 2
+                ;;
+            --round=*)
+                LINT_ROUND="${1#*=}"
                 shift
                 ;;
             -d|--dry-run)
@@ -7142,6 +7412,9 @@ main() {
 
     # Execute command
     case "$command" in
+        lint)
+            cmd_lint "${positional_args[@]}"
+            ;;
         run)
             if [[ ${#positional_args[@]} -lt 1 ]]; then
                 apr_fail "usage_error" "Round number required" "Usage: apr run <round_number>"
