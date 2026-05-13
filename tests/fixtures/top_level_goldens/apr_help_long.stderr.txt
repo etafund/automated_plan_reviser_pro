@@ -1,0 +1,13 @@
+APR v<VERSION>
+SYNOPSIS
+  apr [command] [options]
+
+COMMANDS
+  run <round>        history            doctor
+  setup              show <round>       prompts <cmd>
+  status             stats              providers <cmd>
+  attach <session>   dashboard          plan <cmd>
+  list               backfill           workflow <cmd>
+
+  (Run 'apr help --detailed' for full descriptions)
+
