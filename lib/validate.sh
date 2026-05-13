@@ -547,6 +547,10 @@ apr_lib_validate_workflow_schema() {
     local -a required=(readme spec model output_dir)
     local -a known=(
         "${required[@]}"
+        name
+        documents
+        oracle
+        rounds
         implementation
         impl_every_n
         thinking_time
@@ -558,11 +562,40 @@ apr_lib_validate_workflow_schema() {
 
     local key val line=0
     local has_thinking_time=0
-    while IFS=: read -r key val || [[ -n "$key" ]]; do
+    local raw_line indent_text indent_len in_block=0 block_indent=-1
+    while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
         line=$((line + 1))
-        # Strip whitespace and quotes
-        key=$(printf '%s' "$key" | xargs)
-        [[ -z "$key" || "$key" == "#"* ]] && continue
+
+        # Skip comment/blank lines quickly.
+        [[ -z "${raw_line//[[:space:]]/}" ]] && continue
+        [[ "$raw_line" =~ ^[[:space:]]*# ]] && continue
+
+        # If we are inside a block scalar (key: | or key: >), ignore all lines
+        # that are still part of that block content.
+        indent_text="${raw_line%%[^ ]*}"
+        indent_len=${#indent_text}
+        if [[ $in_block -eq 1 ]]; then
+            if [[ $indent_len -ge $block_indent || -z "${raw_line//[[:space:]]/}" ]]; then
+                continue
+            fi
+            in_block=0
+            block_indent=-1
+        fi
+
+        # Parse YAML-ish mapping lines only: "<indent><key>:<value>".
+        if [[ ! "$raw_line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*:(.*)$ ]]; then
+            continue
+        fi
+        key="${BASH_REMATCH[1]}"
+        val="${BASH_REMATCH[2]}"
+        val=$(printf '%s' "$val" | xargs)
+
+        # Enter block scalar mode when value is "|" or ">" (with optional
+        # chomping/indent indicators), e.g. "|", "|-", ">2".
+        if [[ "$val" =~ ^\|[+-]?[0-9]*$ ]] || [[ "$val" =~ ^\>[+-]?[0-9]*$ ]]; then
+            in_block=1
+            block_indent=$((indent_len + 1))
+        fi
 
         # Check if key is known
         local is_known=0 k
