@@ -16,6 +16,7 @@ load '../helpers/test_helper'
 
 setup() {
     setup_test_environment
+    start_test_artifacts "unit" "${BATS_TEST_NAME}"
     export APR_LIB_DIR="$BATS_TEST_DIRNAME/../../lib"
     load_apr_functions
     setup_test_workflow
@@ -115,6 +116,51 @@ _enable_directives() {
     idx_man=$(printf '%s' "$out" | grep -bo '\[APR Manifest\]' | head -1 | cut -d: -f1)
     idx_mark=$(printf '%s' "$out" | grep -bo 'Marker=EXPANDED' | head -1 | cut -d: -f1)
     [ "$idx_man" -lt "$idx_mark" ]
+}
+
+# =============================================================================
+# Lint / QC: expanded prompts are what the run gate validates
+# =============================================================================
+
+@test "lint_collect_findings: directives-enabled workflow expands and passes prompt QC" {
+    cd "$TEST_PROJECT" || return 1
+    _install_template_body $'Read this inline README:\n[[APR:FILE README.md]]\nSpec sha=[[APR:SHA SPECIFICATION.md]]\nSpec bytes=[[APR:SIZE SPECIFICATION.md]]\nSpec excerpt=[[APR:EXCERPT SPECIFICATION.md 16]]'
+    _enable_directives
+
+    lint_collect_findings "1" "default" "false"
+    local rc=0
+    apr_lib_validate_has_errors || rc=$?
+    [ "$rc" -ne 0 ]
+
+    local prompt="$ARTIFACT_DIR/expanded_prompt.txt"
+    build_revision_prompt "false" ".apr/workflows/default.yaml" > "$prompt"
+    if grep -Fq '[[APR:' "$prompt"; then
+        echo "expanded prompt retained APR directive residue" >&2
+        return 1
+    fi
+    if grep -Fq '{{' "$prompt" || grep -Fq '}}' "$prompt"; then
+        echo "expanded prompt retained mustache placeholder residue" >&2
+        return 1
+    fi
+}
+
+@test "lint_collect_findings: post-expansion mustache residue from LIT is fatal" {
+    cd "$TEST_PROJECT" || return 1
+    _install_template_body "Leak: [[APR:LIT {{README}}]]"
+    _enable_directives
+
+    lint_collect_findings "1" "default" "false"
+    apr_lib_validate_has_errors
+    [ "$(apr_lib_validate_first_error_code)" = "prompt_qc_failed" ]
+}
+
+@test "lint_collect_findings: directive residue without enable toggle is fatal" {
+    cd "$TEST_PROJECT" || return 1
+    _install_template_body "Directive left disabled: [[APR:FILE README.md]]"
+
+    lint_collect_findings "1" "default" "false"
+    apr_lib_validate_has_errors
+    [ "$(apr_lib_validate_first_error_code)" = "prompt_qc_failed" ]
 }
 
 # =============================================================================
