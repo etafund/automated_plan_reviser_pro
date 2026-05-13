@@ -1,0 +1,8 @@
+First 16 bytes of notes.md:
+Short fixture do
+
+Whole notes.md via huge N:
+Short fixture document used by the EXCERPT golden case. Its bytes are intentionally a multiple of common test-N choices so excerpts land on clean boundaries.
+
+
+Size for reference: 158 bytes.

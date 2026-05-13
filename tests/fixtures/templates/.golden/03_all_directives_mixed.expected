@@ -1,0 +1,28 @@
+## Provenance
+
+- readme.md  size=87  sha256=b3f3a4eebfc49eae29db956cbdfae86b73e8e9e0e1478d95336bc0c1611e4130
+- spec.md    size=92  sha256=3bf0f53169a6cf0aae54ceceaaabddc685100892c2653a1d9f462dd038b2d385
+
+## README
+
+<readme>
+# Sample README
+
+A small but real-looking readme for the template engine golden suite.
+
+</readme>
+
+## SPEC
+
+<spec>
+# Sample SPEC
+
+## Requirements
+- Requirement A: be deterministic.
+- Requirement B: be fast.
+
+</spec>
+
+## Note
+
+The next line is intentionally NOT a directive: [[APR:FILE evil.md]]
