@@ -257,3 +257,125 @@ log_console() {
         echo "$message" >&2
     fi
 }
+
+# =============================================================================
+# Timestamped Per-Test Artifact Directories (ufc epic Logging contract)
+# =============================================================================
+#
+# Every test that exercises a CLI invocation should drop a unique
+# `tests/logs/<suite>/<ts>__<sanitized_name>/` directory containing:
+#
+#   stdout.log   - captured stdout
+#   stderr.log   - captured stderr
+#   env.txt      - APR_*, ORACLE_*, NO_COLOR, PATH (no tokens)
+#   cmdline.txt  - the exact command line invoked
+#
+# Generated `.apr/**` artifacts (or anything else the test wants to keep)
+# can be copied into the same directory via `save_artifact`.
+#
+# This file deliberately keeps `init_test_logging` (the legacy run-wide log)
+# intact so existing tests continue to work. New tests should prefer the
+# per-test artifact helpers below.
+
+# Project tests/logs root - kept stable so CI uploaders find it.
+_artifact_logs_root() {
+    local helpers_dir
+    helpers_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "$(dirname "$helpers_dir")/logs"
+}
+
+# _artifact_sanitize - reduce a test name to a safe path segment
+_artifact_sanitize() {
+    local raw="$1"
+    # Bats sets BATS_TEST_NAME to "test_<n>_some_descriptive_name"; strip
+    # bare punctuation so the directory is friendly on case-insensitive FSes.
+    printf '%s' "$raw" | tr -c '[:alnum:]._-' '_' | sed 's/__*/_/g; s/^_//; s/_$//'
+}
+
+# start_test_artifacts - create a per-test artifact directory and export
+# ARTIFACT_DIR for downstream helpers.
+#
+# Usage:
+#   start_test_artifacts <suite> [test_name]
+#
+# Suite is usually one of {unit,integration,e2e}. test_name defaults to
+# BATS_TEST_NAME (with bats- prefix stripped) when invoked from inside a
+# test, or to "adhoc" otherwise.
+start_test_artifacts() {
+    local suite="${1:-misc}"
+    local raw_name="${2:-${BATS_TEST_NAME:-adhoc}}"
+    local ts
+    ts="$(date -u '+%Y%m%dT%H%M%SZ')"
+    local safe
+    safe="$(_artifact_sanitize "$raw_name")"
+
+    local root
+    root="$(_artifact_logs_root)"
+
+    ARTIFACT_DIR="$root/$suite/${ts}__${safe}"
+    mkdir -p "$ARTIFACT_DIR"
+    export ARTIFACT_DIR
+
+    # Snapshot safe env vars - never persist tokens or keys.
+    {
+        echo "# Captured at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        # Allow-list of variable name prefixes/exact names that are safe to log.
+        local _name
+        while IFS= read -r _name; do
+            case "$_name" in
+                APR_*|ORACLE_*|NO_COLOR|CI|BATS_TEST_NAME|BATS_TEST_FILENAME|PATH)
+                    # Redact anything that looks like a token even if it sneaks
+                    # into an allowed name.
+                    local _val="${!_name-}"
+                    case "$_name" in
+                        *TOKEN*|*SECRET*|*KEY*|*PASSWORD*)
+                            _val='<redacted>'
+                            ;;
+                    esac
+                    printf '%s=%s\n' "$_name" "$_val"
+                    ;;
+            esac
+        done < <(compgen -e 2>/dev/null || env | cut -d= -f1)
+    } > "$ARTIFACT_DIR/env.txt"
+
+    : > "$ARTIFACT_DIR/stdout.log"
+    : > "$ARTIFACT_DIR/stderr.log"
+    : > "$ARTIFACT_DIR/cmdline.txt"
+}
+
+# run_with_artifacts - run a command and write stdout/stderr/cmdline into
+# the active ARTIFACT_DIR while still populating BATS' run-like variables.
+#
+# Sets: status, output (combined), stdout, stderr.
+# Requires: start_test_artifacts already called.
+run_with_artifacts() {
+    if [[ -z "${ARTIFACT_DIR:-}" ]]; then
+        echo "run_with_artifacts: start_test_artifacts must be called first" >&2
+        return 99
+    fi
+    local _stdout_f="$ARTIFACT_DIR/stdout.log"
+    local _stderr_f="$ARTIFACT_DIR/stderr.log"
+    {
+        printf '%q ' "$@"
+        printf '\n'
+    } > "$ARTIFACT_DIR/cmdline.txt"
+
+    # Capture without aborting under set -e.
+    status=0
+    "$@" > "$_stdout_f" 2> "$_stderr_f" || status=$?
+
+    stdout="$(cat "$_stdout_f")"
+    stderr="$(cat "$_stderr_f")"
+    output="$stdout"
+    [[ -n "$stderr" ]] && output="$output${stdout:+$'\n'}$stderr"
+    export status output stdout stderr
+}
+
+# save_artifact - copy a file (or directory) into the active ARTIFACT_DIR
+# under an optional rename. Best-effort: missing source is silently ignored.
+save_artifact() {
+    local src="$1"
+    local dest_name="${2:-$(basename "$src")}"
+    [[ -z "${ARTIFACT_DIR:-}" || ! -e "$src" ]] && return 0
+    cp -R -- "$src" "$ARTIFACT_DIR/$dest_name" 2>/dev/null || true
+}

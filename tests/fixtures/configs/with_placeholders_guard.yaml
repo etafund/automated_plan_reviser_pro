@@ -1,0 +1,58 @@
+name: guard-workflow
+description: Fixture INTENTIONALLY containing unexpanded mustache placeholders.
+
+# DO NOT "fix" this fixture by removing the {{...}} tokens — the placeholders
+# are the entire point. APR's prompt quality check is supposed to reject
+# templates like this with an instructive error (and a bypass switch
+# APR_ALLOW_CURLY_PLACEHOLDERS=1 for explicit overrides).
+#
+# Bead bd-1s9 calls this out: keep ONE dedicated guard fixture so the
+# placeholder-leak class regression always has a deterministic reproducer.
+
+documents:
+  readme: README.md
+  spec: SPECIFICATION.md
+  implementation: IMPLEMENTATION.md
+
+oracle:
+  model: "5.2 Thinking"
+  thinking_time: heavy
+
+rounds:
+  output_dir: .apr/rounds/guard
+
+template: |
+  First, read this README:
+
+  <readme>
+  {{README}}
+  </readme>
+
+  Now read the specification:
+
+  <spec>
+  {{SPEC}}
+  </spec>
+
+  Please analyze and provide feedback on this specification.
+
+template_with_impl: |
+  First, read this README:
+
+  <readme>
+  {{README}}
+  </readme>
+
+  Now read the specification:
+
+  <spec>
+  {{SPEC}}
+  </spec>
+
+  And the current implementation:
+
+  <implementation>
+  {{IMPL}}
+  </implementation>
+
+  Please analyze the implementation against the specification.

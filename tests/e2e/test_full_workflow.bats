@@ -47,7 +47,8 @@ oracle:
 rounds:
   output_dir: .apr/rounds/default
 template: |
-  Analyze: {{README}} and {{SPEC}}
+  Read the attached README.md and SPEC.md. Then analyze them
+  and provide feedback on completeness and clarity.
 EOF
 
     # Create required files

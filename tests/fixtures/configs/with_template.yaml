@@ -1,5 +1,17 @@
 name: template-workflow
-description: Workflow with template blocks
+description: Workflow with template blocks (default-safe; no mustache placeholders)
+
+# Canonical attached-file template fixture.
+#
+# Rationale (see bead bd-1s9): APR refuses to send prompts that contain
+# unexpanded mustache-style placeholders (double-curly tokens) because APR
+# does not substitute them; the model would see them verbatim and waste
+# expensive Oracle runs. APR already attaches the documents to Oracle, so
+# the template should instruct the model to read the attached files by
+# name instead of trying to embed their contents inline.
+#
+# For coverage of the placeholder guard itself, see the explicit guard
+# fixture in the same directory.
 
 documents:
   readme: README.md
@@ -14,17 +26,9 @@ rounds:
   output_dir: .apr/rounds/template
 
 template: |
-  First, read this README:
+  First, read the attached README.md.
 
-  <readme>
-  {{README}}
-  </readme>
-
-  Now read the specification:
-
-  <spec>
-  {{SPEC}}
-  </spec>
+  Now read the attached SPECIFICATION.md.
 
   Please analyze and provide feedback on this specification.
   Focus on:
@@ -33,23 +37,11 @@ template: |
   3. Technical feasibility
 
 template_with_impl: |
-  First, read this README:
+  First, read the attached README.md.
 
-  <readme>
-  {{README}}
-  </readme>
+  Now read the attached SPECIFICATION.md.
 
-  Now read the specification:
-
-  <spec>
-  {{SPEC}}
-  </spec>
-
-  And the current implementation:
-
-  <implementation>
-  {{IMPL}}
-  </implementation>
+  And the attached IMPLEMENTATION.md.
 
   Please analyze the implementation against the specification.
   Focus on:
