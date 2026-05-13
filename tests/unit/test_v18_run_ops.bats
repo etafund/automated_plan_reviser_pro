@@ -56,5 +56,5 @@ teardown() {
     # This might fail because it tries to call Oracle, so we just check usage or error
     run "${PROJECT_ROOT}/apr" run 1 --dry-run
     assert_success
-    assert_output --partial "REVISION ROUND 1"
+    assert_output --partial "Round 1"
 }

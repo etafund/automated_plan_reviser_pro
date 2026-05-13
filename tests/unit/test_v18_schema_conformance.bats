@@ -19,5 +19,7 @@ teardown() {
     
     # Assert successful execution
     assert_success
-    assert_output --partial "Summary: 35 checked, 0 errors found."
+    # Check that at least 35 schemas were checked (we keep adding them)
+    [[ $(echo "$output" | grep "Summary:" | awk '{print $2}') -ge 35 ]]
+    assert_output --partial "0 errors found."
 }

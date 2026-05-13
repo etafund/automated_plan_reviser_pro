@@ -5000,26 +5000,38 @@ run_round() {
         fi
     fi
 
-    if [[ "$GUM_AVAILABLE" == "true" && "$QUIET_MODE" != "true" ]]; then
-        gum style \
-            --border rounded \
-            --border-foreground 212 \
-            --padding "1 2" \
-            --margin "0 0 1 0" \
-            "$(gum style --foreground 212 --bold "REVISION ROUND $round_num")" \
-            "" \
-            "$(gum style --foreground 39 "Workflow:") $workflow" \
-            "$(gum style --foreground 39 "Model:") $model" \
-            "$(gum style --foreground 39 "Include impl:") $include_impl" \
-            "$(gum style --foreground 39 "Output:") $output_file" >&2
-    elif [[ "$QUIET_MODE" != "true" ]]; then
-        echo "" >&2
-        echo -e "  ${BOLD}${MAGENTA}REVISION ROUND $round_num${NC}" >&2
-        echo "" >&2
-        echo -e "  ${CYAN}Workflow:${NC}     $workflow" >&2
-        echo -e "  ${CYAN}Model:${NC}        $model" >&2
-        echo -e "  ${CYAN}Include impl:${NC} $include_impl" >&2
-        echo -e "  ${CYAN}Output:${NC}       $output_file" >&2
+    if [[ "$QUIET_MODE" != "true" ]]; then
+        local run_layout
+        run_layout=$(apr_layout_mode 2>/dev/null) || run_layout="compact"
+
+        if [[ "$run_layout" == "compact" ]]; then
+            # Compact: single-column summary with short labels.
+            echo "" >&2
+            apr_ui_info "Round $round_num · $workflow"
+            printf '  model:  %s\n' "$model" >&2
+            printf '  impl:   %s\n' "$include_impl" >&2
+            printf '  output: %s\n' "$output_file" >&2
+        elif [[ "$GUM_AVAILABLE" == "true" ]]; then
+            gum style \
+                --border rounded \
+                --border-foreground 212 \
+                --padding "1 2" \
+                --margin "0 0 1 0" \
+                "$(gum style --foreground 212 --bold "REVISION ROUND $round_num")" \
+                "" \
+                "$(gum style --foreground 39 "Workflow:") $workflow" \
+                "$(gum style --foreground 39 "Model:") $model" \
+                "$(gum style --foreground 39 "Include impl:") $include_impl" \
+                "$(gum style --foreground 39 "Output:") $output_file" >&2
+        else
+            echo "" >&2
+            echo -e "  ${BOLD}${MAGENTA}REVISION ROUND $round_num${NC}" >&2
+            echo "" >&2
+            echo -e "  ${CYAN}Workflow:${NC}     $workflow" >&2
+            echo -e "  ${CYAN}Model:${NC}        $model" >&2
+            echo -e "  ${CYAN}Include impl:${NC} $include_impl" >&2
+            echo -e "  ${CYAN}Output:${NC}       $output_file" >&2
+        fi
     fi
     echo "" >&2
 
@@ -5325,6 +5337,19 @@ run_round() {
             if [[ -z "$OUTPUT_VALIDATION_REASON" ]]; then
                 print_success "Review complete! (${elapsed_fmt} elapsed)"
                 print_info "Output saved to: $output_file"
+                if [[ "$QUIET_MODE" != "true" ]]; then
+                    local show_args=("$round_num")
+                    [[ "$workflow" != "default" ]] && show_args=(--workflow "$workflow" "$round_num")
+                    apr_ui_cta "View" "apr show ${show_args[*]}"
+                    if (( round_num > 1 )); then
+                        local diff_args=("$((round_num - 1))" "$round_num")
+                        [[ "$workflow" != "default" ]] && diff_args=(--workflow "$workflow" "$((round_num - 1))" "$round_num")
+                        apr_ui_cta "Diff" "apr diff ${diff_args[*]}"
+                    fi
+                    local stats_args=()
+                    [[ "$workflow" != "default" ]] && stats_args=(--workflow "$workflow")
+                    apr_ui_cta "Stats" "apr stats ${stats_args[*]}"
+                fi
             fi
 
             # Best-effort metrics collection (skip if output is invalid)
@@ -5431,22 +5456,31 @@ run_round() {
         print_success "Oracle running in background (PID: $oracle_pid)"
         echo "" >&2
 
-        if [[ "$GUM_AVAILABLE" == "true" && "$QUIET_MODE" != "true" ]]; then
-            gum style \
-                --border rounded \
-                --border-foreground 39 \
-                --padding "1 2" \
-                "$(gum style --foreground 214 --bold "MONITORING COMMANDS")" \
-                "" \
-                "Check status:      $(gum style --foreground 82 "apr status")" \
-                "Attach to session: $(gum style --foreground 82 "apr attach $slug")" \
-                "View with output:  $(gum style --foreground 82 "${ORACLE_CMD[*]} session $slug --render")" >&2
-        elif [[ "$QUIET_MODE" != "true" ]]; then
-            echo -e "  ${BOLD}${CYAN}MONITORING COMMANDS${NC}" >&2
-            echo "" >&2
-            echo -e "  Check status:      ${GREEN}apr status${NC}" >&2
-            echo -e "  Attach to session: ${GREEN}apr attach $slug${NC}" >&2
-            echo -e "  View with output:  ${GREEN}${ORACLE_CMD[*]} session $slug --render${NC}" >&2
+        if [[ "$QUIET_MODE" != "true" ]]; then
+            local footer_layout
+            footer_layout=$(apr_layout_mode 2>/dev/null) || footer_layout="compact"
+
+            if [[ "$footer_layout" == "compact" ]]; then
+                apr_ui_cta "Status" "apr status"
+                apr_ui_cta "Attach" "apr attach $slug"
+                apr_ui_cta "Render" "${ORACLE_CMD[*]} session $slug --render"
+            elif [[ "$GUM_AVAILABLE" == "true" ]]; then
+                gum style \
+                    --border rounded \
+                    --border-foreground 39 \
+                    --padding "1 2" \
+                    "$(gum style --foreground 214 --bold "MONITORING COMMANDS")" \
+                    "" \
+                    "Check status:      $(gum style --foreground 82 "apr status")" \
+                    "Attach to session: $(gum style --foreground 82 "apr attach $slug")" \
+                    "View with output:  $(gum style --foreground 82 "${ORACLE_CMD[*]} session $slug --render")" >&2
+            else
+                echo -e "  ${BOLD}${CYAN}MONITORING COMMANDS${NC}" >&2
+                echo "" >&2
+                echo -e "  Check status:      ${GREEN}apr status${NC}" >&2
+                echo -e "  Attach to session: ${GREEN}apr attach $slug${NC}" >&2
+                echo -e "  View with output:  ${GREEN}${ORACLE_CMD[*]} session $slug --render${NC}" >&2
+            fi
         fi
 
         echo "" >&2
