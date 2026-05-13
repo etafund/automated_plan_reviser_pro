@@ -2248,6 +2248,9 @@ lint_collect_findings() {
         return 0
     fi
 
+    # Validate workflow schema (bd-kw2)
+    apr_lib_validate_workflow_schema "$wf_file"
+
     local readme_path spec_path impl_path model output_dir
     readme_path=$(yaml_unquote "$(get_config_value "readme" "$wf_file" 2>/dev/null || echo "")")
     spec_path=$(yaml_unquote "$(get_config_value "spec" "$wf_file" 2>/dev/null || echo "")")
@@ -2586,6 +2589,133 @@ cmd_doctor() {
             return "$capabilities_status"
         fi
         return "$premortem_status"
+    fi
+}
+
+cmd_workflow() {
+    local subcommand="${1:-}"
+    [[ -n "$subcommand" ]] && shift
+    
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+
+    case "$subcommand" in
+        explain)
+            cmd_workflow_explain "${args[@]}"
+            ;;
+        *)
+            apr_fail "usage_error" "Subcommand required: explain" "Usage: apr workflow explain [options]"
+            ;;
+    esac
+}
+
+cmd_workflow_explain() {
+    local workflow="${WORKFLOW:-default}"
+    local round_num="${1:-1}"
+    
+    local wf_file="${CONFIG_DIR}/workflows/${workflow}.yaml"
+    if [[ ! -f "$wf_file" ]]; then
+        apr_fail "not_configured" "Workflow '$workflow' not found" "Run 'apr setup' to create it."
+    fi
+
+    # Read values
+    local readme spec impl model output_dir impl_every_n thinking_time
+    readme=$(yaml_unquote "$(get_config_value "readme" "$wf_file" 2>/dev/null || echo "")")
+    spec=$(yaml_unquote   "$(get_config_value "spec"   "$wf_file" 2>/dev/null || echo "")")
+    impl=$(yaml_unquote   "$(get_config_value "implementation" "$wf_file" 2>/dev/null || echo "")")
+    model=$(yaml_unquote  "$(get_config_value "model"  "$wf_file" 2>/dev/null || echo "")")
+    output_dir=$(yaml_unquote "$(get_config_value "output_dir" "$wf_file" 2>/dev/null || echo "rounds")")
+    impl_every_n=$(yaml_unquote "$(get_config_value "impl_every_n" "$wf_file" 2>/dev/null || echo "0")")
+    thinking_time=$(yaml_unquote "$(get_config_value "thinking_time" "$wf_file" 2>/dev/null || echo "null")")
+
+    # Decision logic
+    local include_impl=false
+    if [[ -n "$impl" && "$impl_every_n" -gt 0 ]]; then
+        if (( round_num % impl_every_n == 0 )); then
+            include_impl=true
+        fi
+    fi
+
+    local slug="apr-${workflow}-round-${round_num}"
+    [[ "$include_impl" == "true" ]] && slug="${slug}-with-impl"
+    local output_file="${output_dir}/round_${round_num}.md"
+
+    if [[ "$STATS_JSON" == "true" ]]; then
+        jq -n \
+            --arg wf "$workflow" \
+            --argjson round "$round_num" \
+            --arg readme "$readme" \
+            --arg spec "$spec" \
+            --arg impl "$impl" \
+            --argjson inc_impl "$include_impl" \
+            --arg model "$model" \
+            --arg tt "$thinking_time" \
+            --arg slug "$slug" \
+            --arg out "$output_file" \
+            '{
+                workflow: $wf,
+                round: $round,
+                resolved_paths: {
+                    readme: $readme,
+                    spec: $spec,
+                    implementation: $impl
+                },
+                decisions: {
+                    include_impl: $inc_impl
+                },
+                oracle: {
+                    model: $model,
+                    thinking_time: $tt
+                },
+                artifacts: {
+                    slug: $slug,
+                    output_path: $out
+                }
+            }'
+    else
+        print_banner
+        print_header "WORKFLOW EXPLAIN: $workflow (Round $round_num)"
+        
+        echo "" >&2
+        if [[ "$GUM_AVAILABLE" == "true" ]]; then
+            gum style --bold "Resolved Paths:" >&2
+        else
+            echo -e "${BOLD}Resolved Paths:${NC}" >&2
+        fi
+        echo "  README:         $readme" >&2
+        echo "  Spec:           $spec" >&2
+        echo "  Implementation: ${impl:-[none]}" >&2
+        
+        echo "" >&2
+        if [[ "$GUM_AVAILABLE" == "true" ]]; then
+            gum style --bold "Decisions:" >&2
+        else
+            echo -e "${BOLD}Decisions:${NC}" >&2
+        fi
+        if [[ "$include_impl" == "true" ]]; then
+            echo "  Include impl:   YES (impl_every_n: $impl_every_n)" >&2
+        else
+            echo "  Include impl:   NO  (impl_every_n: $impl_every_n)" >&2
+        fi
+        
+        echo "" >&2
+        if [[ "$GUM_AVAILABLE" == "true" ]]; then
+            gum style --bold "Oracle Config:" >&2
+        else
+            echo -e "${BOLD}Oracle Config:${NC}" >&2
+        fi
+        echo "  Model:          $model" >&2
+        echo "  Thinking Time:  ${thinking_time:-[default]}" >&2
+        
+        echo "" >&2
+        if [[ "$GUM_AVAILABLE" == "true" ]]; then
+            gum style --bold "Artifacts:" >&2
+        else
+            echo -e "${BOLD}Artifacts:${NC}" >&2
+        fi
+        echo "  Session Slug:   $slug" >&2
+        echo "  Output Path:    $output_file" >&2
+        echo "" >&2
     fi
 }
 
@@ -7893,6 +8023,7 @@ show_help() {
         echo "    $(gum style --foreground 82 'attach <session>')   Attach to running/completed session" >&2
         echo "    $(gum style --foreground 82 'providers <cmd>')    v18 plan-routes and readiness gates" >&2
         echo "    $(gum style --foreground 82 'plan <cmd>')         v18 plan export and management" >&2
+        echo "    $(gum style --foreground 82 'workflow <cmd>')     v18 workflow introspection and schema check" >&2
         echo "" >&2
         gum style --foreground 39 "  Management" >&2
         echo "    $(gum style --foreground 82 'list')               List configured workflows" >&2
@@ -8022,6 +8153,7 @@ show_help() {
         echo -e "    ${GREEN}attach <session>${NC}   Attach to running/completed session" >&2
         echo -e "    ${GREEN}providers <cmd>${NC}    v18 plan-routes and readiness gates" >&2
         echo -e "    ${GREEN}plan <cmd>${NC}         v18 plan export and management" >&2
+        echo -e "    ${GREEN}workflow <cmd>${NC}     v18 workflow introspection and schema check" >&2
         echo "" >&2
         echo -e "  ${CYAN}Management${NC}" >&2
         echo -e "    ${GREEN}list${NC}               List configured workflows" >&2
@@ -8491,6 +8623,9 @@ main() {
             ;;
         providers)
             cmd_providers "${positional_args[@]}"
+            ;;
+        workflow)
+            cmd_workflow "${positional_args[@]}"
             ;;
         plan)
             cmd_plan "${positional_args[@]}"

@@ -530,6 +530,70 @@ _apr_validate_lines_to_json() {
 }
 
 # -----------------------------------------------------------------------------
+# apr_lib_validate_workflow_schema <workflow_file>
+#
+# Validate that the workflow YAML contains required keys and warn on unknown
+# ones.
+# -----------------------------------------------------------------------------
+apr_lib_validate_workflow_schema() {
+    local wf_file="${1:?workflow file required}"
+    if [[ ! -f "$wf_file" ]]; then
+        return 1
+    fi
+
+    local -a required=(readme spec model output_dir)
+    local -a known=(
+        "${required[@]}"
+        implementation
+        impl_every_n
+        thinking_time
+        description
+        template_directives
+        template
+        template_with_impl
+    )
+
+    local key val line=0
+    while IFS=: read -r key val || [[ -n "$key" ]]; do
+        line=$((line + 1))
+        # Strip whitespace and quotes
+        key=$(printf '%s' "$key" | xargs)
+        [[ -z "$key" || "$key" == "#"* ]] && continue
+        
+        # Check if key is known
+        local is_known=0 k
+        for k in "${known[@]}"; do
+            if [[ "$key" == "$k" || "$key" == "$k."* ]]; then
+                is_known=1
+                break
+            fi
+        done
+
+        if [[ $is_known -eq 0 ]]; then
+            apr_lib_validate_add_warning "config_warning" \
+                "Unknown key in workflow: $key" \
+                "Check for typos or remove the unused key." \
+                "$wf_file:$line" \
+                "$(printf '{"key":"%s"}' "$(_apr_validate_json_escape "$key")")"
+        fi
+    done < "$wf_file"
+
+    # Check for missing required keys
+    local req
+    for req in "${required[@]}"; do
+        if ! grep -qE "^[[:space:]]*$req[[:space:]]*:" "$wf_file"; then
+            apr_lib_validate_add_error "config_error" \
+                "Missing required workflow key: $req" \
+                "Add '$req' to your workflow YAML." \
+                "$wf_file" \
+                "$(printf '{"key":"%s"}' "$req")"
+        fi
+    done
+
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # apr_lib_validate_documents_exist <required_paths_csv> [<optional_paths_csv>]
 #
 # Validate that every path in <required_paths_csv> exists and is readable.
