@@ -231,6 +231,57 @@ EOF
     grep -Fq 'Prompt redaction applied: 1 replacement(s)' "$ARTIFACT_DIR/stderr.log"
 }
 
+@test "redact: APR_REDACT=1 redacts attached documents before Oracle render" {
+    install_fixture_workflow "with_template.yaml" "redact-files"
+
+    cat > "$TEST_PROJECT/README.md" <<'EOF'
+# Sample README
+
+Diagnostic token: sk-aabbccddeeff112233445566778899XYZABC
+EOF
+
+    cat > "$TEST_DIR/bin/oracle" <<'EOF'
+#!/usr/bin/env bash
+while (($#)); do
+    case "$1" in
+        --version)
+            echo "oracle 0.8.4 (mock)"
+            exit 0
+            ;;
+        --help)
+            echo "Usage: oracle [options]"
+            exit 0
+            ;;
+        --file)
+            shift
+            cat "${1-}"
+            printf '\n'
+            ;;
+        -p)
+            shift
+            printf '%s\n' "${1-}"
+            ;;
+    esac
+    shift || true
+done
+EOF
+    chmod +x "$TEST_DIR/bin/oracle"
+
+    APR_REDACT=1 run_with_artifacts "$APR_SCRIPT" run 1 --render --no-lint
+
+    [[ "$status" -eq 0 ]] || {
+        echo "render exited $status with output:" >&2
+        echo "$output" >&2
+        return 1
+    }
+
+    grep -Fq '<<REDACTED:OPENAI_KEY>>' "$ARTIFACT_DIR/stdout.log"
+    if grep -Fq 'sk-aabbccddeeff112233445566778899XYZABC' "$ARTIFACT_DIR/stdout.log"; then
+        return 1
+    fi
+    grep -Fq 'Prompt redaction applied: 1 replacement(s)' "$ARTIFACT_DIR/stderr.log"
+}
+
 # ---------------------------------------------------------------------------
 # Regression: no other fixture leaks {{...}}
 # ---------------------------------------------------------------------------
