@@ -1,5 +1,5 @@
 {
-  "$id": "https://example.invalid/vibe-planning/contracts/runtime-budget.schema.json",
+  "$id": "https://example.invalid/v18/contracts/runtime-budget.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {

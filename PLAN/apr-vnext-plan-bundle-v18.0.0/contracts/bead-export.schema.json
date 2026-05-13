@@ -1,5 +1,5 @@
 {
-  "$id": "https://example.invalid/vibe-planning/contracts/bead-export.schema.json",
+  "$id": "https://example.invalid/v18/contracts/bead-export.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "$defs": {

@@ -1,5 +1,5 @@
 {
-  "$id": "https://example.invalid/vibe-planning/contracts/prompt-policy.schema.json",
+  "$id": "https://example.invalid/v18/contracts/prompt-policy.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {

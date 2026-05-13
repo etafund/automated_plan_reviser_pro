@@ -1,5 +1,5 @@
 {
-  "$id": "https://example.invalid/vibe-planning/contracts/interactive-intake.schema.json",
+  "$id": "https://example.invalid/v18/contracts/interactive-intake.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {

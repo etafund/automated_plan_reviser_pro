@@ -1,5 +1,5 @@
 {
-  "$id": "https://example.invalid/vibe-planning/contracts/human-review-packet.schema.json",
+  "$id": "https://example.invalid/v18/contracts/human-review-packet.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "$defs": {
