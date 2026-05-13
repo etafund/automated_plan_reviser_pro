@@ -29,7 +29,13 @@ def is_waiver_valid(waiver):
             if datetime.now(timezone.utc) > exp:
                 return False
         except ValueError:
-            pass
+            waiver_id = waiver.get('waiver_id', '<unknown>')
+            logging.warning(
+                "Unparseable waiver expires_at for waiver_id=%s expires_at=%r; treating as expired",
+                waiver_id,
+                expires_at,
+            )
+            return False
     return waiver.get('synthesis_eligible_after_waiver', False)
 
 def main():

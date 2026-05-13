@@ -63,6 +63,18 @@ teardown() {
     assert_output --partial 'Optional reviewers: 0 eligible'
 }
 
+@test "Malformed waiver expires_at is treated as expired (fail-closed)" {
+    local res1="$TEST_DIR/res1.json"
+    local waiver="$TEST_DIR/waiver.json"
+    echo '{"provider_slot": "gemini_deep_think", "status": "success"}' > "$res1"
+    echo '{"provider_slot": "claude_code_opus", "synthesis_eligible_after_waiver": true, "expires_at": "next week"}' > "$waiver"
+
+    run python3 "$SCRIPT_PATH" --policy "$POLICY" --results "$res1" --waivers "$waiver" --json
+    assert_success
+    assert_output --partial '"ok": false'
+    assert_output --partial 'Optional reviewers: 0 eligible'
+}
+
 @test "Total count not met" {
     local res1="$TEST_DIR/res1.json"
     local waiver="$TEST_DIR/waiver.json"
