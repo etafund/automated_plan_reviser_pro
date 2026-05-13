@@ -93,10 +93,18 @@ assert_envelope_shape() {
     local out="$ARTIFACT_DIR/access_prohibited.json"
     ( cd "$BUNDLE_DIR" && python3 scripts/enforce-access-policy.py \
         --route chatgpt_pro_first_plan \
-        --access-path openai_api --json ) > "$out" 2>/dev/null
+        --access-path openai_api --json ) > "$out" 2>/dev/null || true
     assert_envelope_shape "$out" "enforce-access-policy"
     jq -e '.ok == false and (.errors | length > 0)' "$out" >/dev/null
     jq -e '.blocked_reason | type == "string" and length > 0' "$out" >/dev/null
+}
+
+@test "enforce/access-policy: prohibited access path in --json mode exits non-zero" {
+    local rc=0
+    ( cd "$BUNDLE_DIR" && python3 scripts/enforce-access-policy.py \
+        --route chatgpt_pro_first_plan \
+        --access-path openai_api --json ) > "$ARTIFACT_DIR/access_prohibited_rc.json" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
 }
 
 @test "enforce/access-policy: missing required --route → non-zero exit" {
@@ -113,7 +121,7 @@ assert_envelope_shape() {
 @test "enforce/review-quorum: balanced quorum fixture → schema-correct envelope" {
     local out="$ARTIFACT_DIR/quorum_balanced.json"
     ( cd "$BUNDLE_DIR" && python3 scripts/enforce-review-quorum.py \
-        --policy "fixtures/review-quorum.balanced.json" --json ) > "$out" 2>/dev/null
+        --policy "fixtures/review-quorum.balanced.json" --json ) > "$out" 2>/dev/null || true
     assert_envelope_shape "$out" "enforce-review-quorum"
 }
 
@@ -130,6 +138,13 @@ assert_envelope_shape() {
         --policy "/definitely/not/a/path.json" --json ) > "$out" 2>/dev/null || true
     assert_envelope_shape "$out" "enforce-review-quorum"
     jq -e '.ok == false and (.errors | length > 0)' "$out" >/dev/null
+}
+
+@test "enforce/review-quorum: nonexistent policy in --json mode exits non-zero" {
+    local rc=0
+    ( cd "$BUNDLE_DIR" && python3 scripts/enforce-review-quorum.py \
+        --policy "/definitely/not/a/path.json" --json ) > "$ARTIFACT_DIR/quorum_nofile_rc.json" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
 }
 
 # ===========================================================================
@@ -181,6 +196,25 @@ JSON
     }
 }
 
+@test "enforce/runtime-budget: budget violation in --json mode exits non-zero" {
+    local tiny_budget="$TEST_DIR/tiny_budget_rc.json"
+    cat > "$tiny_budget" <<'JSON'
+{
+  "schema_version": "runtime_budget.v1",
+  "bundle_version": "v18.0.0",
+  "wall_clock_budget_minutes": 1,
+  "cost_budget_usd": 100.0,
+  "retry_budget": {"attempts": 3, "cooldown_seconds": 60}
+}
+JSON
+    local rc=0
+    ( cd "$BUNDLE_DIR" && python3 scripts/enforce-runtime-budget.py \
+        --budget "$tiny_budget" \
+        --progress "fixtures/run-progress.json" \
+        --elapsed-minutes 999 --json ) > "$ARTIFACT_DIR/budget_exceed_rc.json" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
+}
+
 # ===========================================================================
 # enforce-stage-readiness.py
 # ===========================================================================
@@ -204,6 +238,14 @@ JSON
     assert_envelope_shape "$out" "enforce-stage-readiness"
     jq -e '.ok == false and .data.ready == false' "$out" >/dev/null
     jq -e '.errors | length > 0' "$out" >/dev/null
+}
+
+@test "enforce/stage-readiness: failing synthesis check in --json mode exits non-zero" {
+    local rc=0
+    ( cd "$BUNDLE_DIR" && python3 scripts/enforce-stage-readiness.py \
+        --readiness "fixtures/route-readiness.balanced.json" \
+        --stage synthesis --json ) > "$ARTIFACT_DIR/stage_synth_rc.json" 2>/dev/null || rc=$?
+    [[ "$rc" -ne 0 ]]
 }
 
 @test "enforce/stage-readiness: nonexistent readiness file → ok=false + errors[]" {
@@ -327,19 +369,20 @@ JSON
         [access]="scripts/enforce-access-policy.py --route chatgpt_pro_first_plan --access-path oracle_browser_remote --json"
         [stage]="scripts/enforce-stage-readiness.py --readiness fixtures/route-readiness.balanced.json --stage preflight --json"
     )
-    local label cmd outdir
+    local label cmd stdout_log stderr_log
     for label in access stage; do
         cmd="${cases[$label]}"
-        outdir="$ARTIFACT_DIR/stream_${label}"
-        mkdir -p "$outdir"
+        stdout_log="$(mktemp)"
+        stderr_log="$(mktemp)"
         # shellcheck disable=SC2086
-        ( cd "$BUNDLE_DIR" && python3 $cmd ) > "$outdir/stdout.log" 2> "$outdir/stderr.log"
-        jq -e . "$outdir/stdout.log" >/dev/null
+        ( cd "$BUNDLE_DIR" && python3 $cmd ) > "$stdout_log" 2> "$stderr_log"
+        jq -e . "$stdout_log" >/dev/null
         # Stderr should be empty (or at least not contain a JSON envelope).
-        if grep -Fq '"schema_version"' "$outdir/stderr.log"; then
+        if grep -Fq '"schema_version"' "$stderr_log"; then
             echo "[$label] JSON envelope leaked into stderr:" >&2
-            cat "$outdir/stderr.log" >&2
+            cat "$stderr_log" >&2
             return 1
         fi
+        rm -f "$stdout_log" "$stderr_log"
     done
 }

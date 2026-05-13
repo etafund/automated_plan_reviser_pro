@@ -1,0 +1,131 @@
+{
+  "state": {
+    "anthropic": {
+      "current_delay": 384433593750,
+      "consecutive_success": 0,
+      "last_rate_limit": "2026-05-13T02:39:48.41194026-07:00",
+      "cooldown_until": "2026-05-13T02:46:12.84553401-07:00",
+      "total_rate_limits": 8,
+      "total_successes": 7
+    },
+    "google": {
+      "current_delay": 27000000000,
+      "consecutive_success": 1,
+      "last_rate_limit": "2026-05-12T23:21:38.415618427-07:00",
+      "cooldown_until": "2026-05-12T23:22:05.415618427-07:00",
+      "total_rate_limits": 3,
+      "total_successes": 3
+    },
+    "openai": {
+      "current_delay": 256289062500,
+      "consecutive_success": 1,
+      "last_rate_limit": "2026-05-12T21:27:38.411026504-07:00",
+      "cooldown_until": "2026-05-12T21:31:54.700089004-07:00",
+      "total_rate_limits": 8,
+      "total_successes": 11
+    }
+  },
+  "history": {
+    "anthropic": [
+      {
+        "time": "2026-05-12T19:27:18.467673698-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T19:32:38.404580738-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T19:39:08.455335949-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T22:00:28.420382624-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T22:12:18.413582872-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T22:34:48.419988005-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T22:34:58.415826299-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-13T02:39:48.41194026-07:00",
+        "provider": "anthropic",
+        "action": "send"
+      }
+    ],
+    "google": [
+      {
+        "time": "2026-05-12T19:30:48.411993479-07:00",
+        "provider": "google",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T23:19:38.412126326-07:00",
+        "provider": "google",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T23:21:38.415618427-07:00",
+        "provider": "google",
+        "action": "send"
+      }
+    ],
+    "openai": [
+      {
+        "time": "2026-05-12T20:33:48.413618617-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T20:36:08.421293178-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T20:47:48.410225452-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T21:05:08.410110117-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T21:05:28.405402996-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T21:17:38.417571692-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T21:21:18.404969286-07:00",
+        "provider": "openai",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-12T21:27:38.411026504-07:00",
+        "provider": "openai",
+        "action": "send"
+      }
+    ]
+  }
+}
