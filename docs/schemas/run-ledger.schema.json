@@ -288,5 +288,43 @@
         "parse_error": { "type": ["string", "null"] }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["state"],
+        "properties": {
+          "state": { "const": "finished" }
+        }
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "properties": {
+              "ok": { "const": true },
+              "code": { "const": "ok" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["state"],
+        "properties": {
+          "state": { "enum": ["started", "failed", "canceled"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "properties": {
+              "ok": { "const": false },
+              "code": { "not": { "const": "ok" } }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -15,12 +15,13 @@
 #     green (positive corpus: minimal-started, full-finished-ok,
 #     failed-busy, canceled — covers every state in the enum).
 #   - Every fixture under tests/fixtures/run_ledger/invalid/ is
-#     rejected (negative corpus, 11 failure modes — missing top-level
+#     rejected (negative corpus, 14 failure modes — missing top-level
 #     required, wrong schema_version const, additionalProperties leak,
 #     malformed prompt_hash sha256, state enum violation, file-entry
 #     missing sha, file-entry inclusion_reason enum violation, round
 #     minimum violation, oracle missing required, outcome
-#     additionalProperties leak, execution counter below minimum).
+#     additionalProperties leak, execution counter below minimum,
+#     state/outcome inconsistency).
 #   - Pinned spot checks: state enum, prompt_hash shape,
 #     additionalProperties on top level + sub-objects.
 #
@@ -216,6 +217,33 @@ PY
     [[ -f "$f" ]] || skip "fixture missing"
     if validate_ledger "$f" 2>/dev/null; then
         echo "outcome additionalProperties spot check: should be rejected" >&2
+        return 1
+    fi
+}
+
+@test "schema rejects finished ledgers whose outcome is not ok" {
+    local f="$FIXTURES_DIR/invalid/12_finished_outcome_not_ok.json"
+    [[ -f "$f" ]] || skip "fixture missing"
+    if validate_ledger "$f" 2>/dev/null; then
+        echo "finished outcome consistency spot check: should be rejected" >&2
+        return 1
+    fi
+}
+
+@test "schema rejects failed ledgers whose outcome claims ok" {
+    local f="$FIXTURES_DIR/invalid/13_failed_outcome_ok.json"
+    [[ -f "$f" ]] || skip "fixture missing"
+    if validate_ledger "$f" 2>/dev/null; then
+        echo "failed outcome consistency spot check: should be rejected" >&2
+        return 1
+    fi
+}
+
+@test "schema rejects canceled ledgers whose outcome claims ok" {
+    local f="$FIXTURES_DIR/invalid/14_canceled_outcome_ok.json"
+    [[ -f "$f" ]] || skip "fixture missing"
+    if validate_ledger "$f" 2>/dev/null; then
+        echo "canceled outcome consistency spot check: should be rejected" >&2
         return 1
     fi
 }
