@@ -5447,10 +5447,14 @@ run_round() {
             
             # Verify files-report (bd-1tl)
             local verify_res trust_json files_report_json
-            verify_res=$(python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/verify-files-report.py" \
-                --expected-files "$files_json" \
-                --oracle-output "$run_log" \
-                --json)
+            local verify_args=(
+                --expected-files "$files_json"
+                --oracle-output "$run_log"
+                --json
+            )
+            [[ "${APR_STRICT_ATTACHMENTS:-0}" == "1" ]] && verify_args+=("--strict")
+            
+            verify_res=$(python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/verify-files-report.py" "${verify_args[@]}")
             
             trust_json=$(printf '%s' "$verify_res" | jq -c '.data.trust')
             files_report_json=$(printf '%s' "$verify_res" | jq -c '.data.files_report')

@@ -85,3 +85,17 @@ EOF
     assert_success
     assert_output --partial '"files_report_supported": false'
 }
+
+@test "Files-report verification: strict mode failure" {
+    local expected='[{"path":"README.md","bytes":100,"inclusion_reason":"required"}]'
+    local output_log="$TEST_DIR/oracle.log"
+    cat > "$output_log" <<EOF
+[oracle] Files report:
+[oracle]   - README.md: success (500 bytes)
+EOF
+
+    run python3 "$SCRIPT_PATH" --expected-files "$expected" --oracle-output "$output_log" --strict --json
+    assert_success
+    assert_output --partial '"ok": false'
+    assert_output --partial 'mismatch'
+}

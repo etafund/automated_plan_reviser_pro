@@ -45,6 +45,7 @@ def main():
     ap = argparse.ArgumentParser(description='Verify Oracle files-report against expected manifest.')
     ap.add_argument('--expected-files', required=True, help='JSON array of expected file objects')
     ap.add_argument('--oracle-output', required=True, help='Path to Oracle output log/file')
+    ap.add_argument('--strict', action='store_true', help='Treat mismatches as errors')
     ap.add_argument('--json', action='store_true')
     args = ap.parse_args()
 
@@ -115,7 +116,10 @@ def main():
             
             if not ok:
                 msg = f"Oracle files-report mismatch: {len(missing)} missing, {len(extra)} extra, {len(size_mismatches)} size diffs."
-                warnings.append(msg)
+                if args.strict:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
                 logging.warning(msg)
             else:
                 logging.info("Oracle files-report verified successfully.")
