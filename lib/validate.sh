@@ -235,30 +235,33 @@ apr_lib_validate_emit_json() {
 # -----------------------------------------------------------------------------
 apr_lib_validate_emit_human() {
     local i
+    local first=1
     if [[ -n "${_APR_VALIDATE_ERR_CODE[*]+set}" ]]; then
         for i in "${!_APR_VALIDATE_ERR_CODE[@]}"; do
-            printf 'ERROR [%s]: %s\n' \
-                "${_APR_VALIDATE_ERR_CODE[$i]}" \
-                "${_APR_VALIDATE_ERR_MSG[$i]}"
-            if [[ -n "${_APR_VALIDATE_ERR_SOURCE[$i]}" ]]; then
-                printf '  source: %s\n' "${_APR_VALIDATE_ERR_SOURCE[$i]}"
+            [[ $first -eq 0 ]] && echo "" >&2
+            if declare -F apr_ui_error >/dev/null; then
+                apr_ui_error "${_APR_VALIDATE_ERR_MSG[$i]}" \
+                    "code: ${_APR_VALIDATE_ERR_CODE[$i]}${_APR_VALIDATE_ERR_SOURCE[$i]:+; source: ${_APR_VALIDATE_ERR_SOURCE[$i]}}${_APR_VALIDATE_ERR_HINT[$i]:+; hint: ${_APR_VALIDATE_ERR_HINT[$i]}}"
+            else
+                printf 'ERROR [%s]: %s\n' "${_APR_VALIDATE_ERR_CODE[$i]}" "${_APR_VALIDATE_ERR_MSG[$i]}"
+                [[ -n "${_APR_VALIDATE_ERR_SOURCE[$i]}" ]] && printf '  source: %s\n' "${_APR_VALIDATE_ERR_SOURCE[$i]}"
+                [[ -n "${_APR_VALIDATE_ERR_HINT[$i]}" ]] && printf '  hint:   %s\n' "${_APR_VALIDATE_ERR_HINT[$i]}"
             fi
-            if [[ -n "${_APR_VALIDATE_ERR_HINT[$i]}" ]]; then
-                printf '  hint:   %s\n' "${_APR_VALIDATE_ERR_HINT[$i]}"
-            fi
+            first=0
         done
     fi
     if [[ -n "${_APR_VALIDATE_WARN_CODE[*]+set}" ]]; then
         for i in "${!_APR_VALIDATE_WARN_CODE[@]}"; do
-            printf 'WARN  [%s]: %s\n' \
-                "${_APR_VALIDATE_WARN_CODE[$i]}" \
-                "${_APR_VALIDATE_WARN_MSG[$i]}"
-            if [[ -n "${_APR_VALIDATE_WARN_SOURCE[$i]}" ]]; then
-                printf '  source: %s\n' "${_APR_VALIDATE_WARN_SOURCE[$i]}"
+            [[ $first -eq 0 ]] && echo "" >&2
+            if declare -F apr_ui_warn >/dev/null; then
+                apr_ui_warn "${_APR_VALIDATE_WARN_MSG[$i]}" \
+                    "code: ${_APR_VALIDATE_WARN_CODE[$i]}${_APR_VALIDATE_WARN_SOURCE[$i]:+; source: ${_APR_VALIDATE_WARN_SOURCE[$i]}}${_APR_VALIDATE_WARN_HINT[$i]:+; hint: ${_APR_VALIDATE_WARN_HINT[$i]}}"
+            else
+                printf 'WARN  [%s]: %s\n' "${_APR_VALIDATE_WARN_CODE[$i]}" "${_APR_VALIDATE_WARN_MSG[$i]}"
+                [[ -n "${_APR_VALIDATE_WARN_SOURCE[$i]}" ]] && printf '  source: %s\n' "${_APR_VALIDATE_WARN_SOURCE[$i]}"
+                [[ -n "${_APR_VALIDATE_WARN_HINT[$i]}" ]] && printf '  hint:   %s\n' "${_APR_VALIDATE_WARN_HINT[$i]}"
             fi
-            if [[ -n "${_APR_VALIDATE_WARN_HINT[$i]}" ]]; then
-                printf '  hint:   %s\n' "${_APR_VALIDATE_WARN_HINT[$i]}"
-            fi
+            first=0
         done
     fi
 }
@@ -560,7 +563,7 @@ apr_lib_validate_workflow_schema() {
         # Strip whitespace and quotes
         key=$(printf '%s' "$key" | xargs)
         [[ -z "$key" || "$key" == "#"* ]] && continue
-        
+
         # Check if key is known
         local is_known=0 k
         for k in "${known[@]}"; do
@@ -580,7 +583,8 @@ apr_lib_validate_workflow_schema() {
 
         # Model policy (bd-19x)
         if [[ "$key" == "model" ]]; then
-            local m=$(printf '%s' "$val" | xargs)
+            local m
+            m=$(printf '%s' "$val" | xargs)
             if [[ "${APR_ALLOW_NONPRO_MODELS:-0}" != "1" ]]; then
                 # Allow list: Thinking, Pro, o1, o3, opus, 4.7, 5.2
                 if [[ ! "$m" =~ (Thinking|Pro|o1|o3|opus|4.7|5.2) ]]; then
@@ -596,7 +600,8 @@ apr_lib_validate_workflow_schema() {
         # Thinking time policy (bd-19x)
         if [[ "$key" == "thinking_time" ]]; then
             has_thinking_time=1
-            local tt=$(printf '%s' "$val" | xargs)
+            local tt
+            tt=$(printf '%s' "$val" | xargs)
             if [[ "${APR_ALLOW_LIGHT_THINKING:-0}" != "1" ]]; then
                 if [[ "$tt" =~ ^[0-9]+$ ]] && (( tt < 60 )); then
                      apr_lib_validate_add_warning "config_warning" \
@@ -621,7 +626,7 @@ apr_lib_validate_workflow_schema() {
     # Check for missing required keys
     local req
     for req in "${required[@]}"; do
-        if ! grep -qE "^[[:space:]]*$req[[:space:]]*:" "$wf_file"; then
+        if ! grep -qE "^[[:space:]]*${req}[[:space:]]*:" "$wf_file"; then
             apr_lib_validate_add_error "config_error" \
                 "Missing required workflow key: $req" \
                 "Add '$req' to your workflow YAML." \

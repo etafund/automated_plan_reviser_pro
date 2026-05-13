@@ -1641,6 +1641,7 @@ print_banner() {
 }
 
 print_header() {
+    [[ "$QUIET_MODE" == "true" ]] && return
     local text="$1"
     local layout
     layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
