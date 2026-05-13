@@ -1,0 +1,95 @@
+{
+  "schema_version": "provider_adapter_pipeline_conformance_cases.v1",
+  "bundle_version": "v18.0.0",
+  "cases": [
+    {
+      "id": "deepseek_success_provider_result",
+      "kind": "command",
+      "script": "scripts/xai-deepseek-adapters.py",
+      "args": ["--provider", "deepseek", "--scenario", "success", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true,
+      "provider_result_pointer": "/data/provider_result"
+    },
+    {
+      "id": "xai_success_provider_result",
+      "kind": "command",
+      "script": "scripts/xai-deepseek-adapters.py",
+      "args": ["--provider", "xai", "--scenario", "success", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true,
+      "provider_result_pointer": "/data/provider_result"
+    },
+    {
+      "id": "deepseek_raw_reasoning_rejected",
+      "kind": "command",
+      "script": "scripts/xai-deepseek-adapters.py",
+      "args": ["--provider", "deepseek", "--scenario", "raw_reasoning_leak", "--json"],
+      "expect_exit": 1,
+      "expect_ok": false,
+      "provider_result_pointer": "/data/provider_result"
+    },
+    {
+      "id": "provider_adapter_fixtures_validate",
+      "kind": "command",
+      "script": "scripts/xai-deepseek-adapters.py",
+      "args": ["--validate-fixtures", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "codex_intake_robot_surface",
+      "kind": "command",
+      "script": "scripts/claude-codex-adapters.py",
+      "args": ["--provider", "codex", "--action", "intake", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "claude_missing_prompt_error_surface",
+      "kind": "command",
+      "script": "scripts/claude-codex-adapters.py",
+      "args": ["--provider", "claude", "--action", "invoke", "--json"],
+      "expect_exit": 0,
+      "expect_ok": false
+    },
+    {
+      "id": "plan_pipeline_fanout_surface",
+      "kind": "command",
+      "script": "scripts/plan-pipeline.py",
+      "args": ["--action", "fanout", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "plan_pipeline_normalize_surface",
+      "kind": "command",
+      "script": "scripts/plan-pipeline.py",
+      "args": ["--action", "normalize", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "plan_pipeline_compare_surface",
+      "kind": "command",
+      "script": "scripts/plan-pipeline.py",
+      "args": ["--action", "compare", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "plan_pipeline_synthesize_surface",
+      "kind": "command",
+      "script": "scripts/plan-pipeline.py",
+      "args": ["--action", "synthesize", "--json"],
+      "expect_exit": 0,
+      "expect_ok": true
+    },
+    {
+      "id": "plan_artifact_fixture_schema",
+      "kind": "fixture_schema",
+      "fixture": "fixtures/plan-artifact.json",
+      "schema": "contracts/plan-artifact.schema.json"
+    }
+  ]
+}
