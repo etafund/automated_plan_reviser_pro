@@ -11,7 +11,7 @@ def env(ok=True, data=None, warnings=None, errors=None, next_command=None, fix_c
         'ok': ok,
         'schema_version': 'json_envelope.v1',
         'data': data or {},
-        'meta': {'tool': 'runtime-budget-enforcer', 'bundle_version': VERSION},
+        'meta': {'tool': 'enforce-runtime-budget', 'bundle_version': VERSION},
         'warnings': warnings or [],
         'errors': errors or [],
         'commands': {'next': 'python3 scripts/enforce-runtime-budget.py --json'},
