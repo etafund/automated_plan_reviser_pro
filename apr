@@ -4296,6 +4296,28 @@ run_round() {
 # Status & Session Management
 # -----------------------------------------------------------------------------
 
+cmd_run_v18() {
+    local subcommand="${1:-}"
+    [[ -n "$subcommand" ]] && shift
+    
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+
+    case "$subcommand" in
+        status|report|resume|retry)
+            python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/v18-run-ops.py" --action "$subcommand" "${args[@]}"
+            ;;
+        *)
+            # If subcommand is a number, it's an old-style run
+            if is_non_negative_int "$subcommand"; then
+                run_round "$subcommand" "$@"
+            else
+                apr_fail "usage_error" "Subcommand required: status, report, resume, retry, or round number" "Usage: apr run {status|report|resume|retry|<round>} [options]"
+            fi
+            ;;
+    esac
+}
+
 show_status() {
     print_banner
     print_header "ORACLE SESSION STATUS"
@@ -7653,7 +7675,7 @@ main() {
                 STATS_DETAILED=true
                 shift
                 ;;
-            --profile|--readiness|--stage|--input)
+            --profile|--readiness|--stage|--input|--run-dir)
                 positional_args+=("$1" "${2:-}")
                 shift 2
                 ;;
@@ -7809,13 +7831,7 @@ main() {
             cmd_lint "${positional_args[@]}"
             ;;
         run)
-            if [[ ${#positional_args[@]} -lt 1 ]]; then
-                apr_fail "usage_error" "Round number required" "Usage: apr run <round_number>"
-            fi
-            if ! is_non_negative_int "${positional_args[0]}"; then
-                apr_fail "usage_error" "Round number must be a non-negative integer" "Usage: apr run <round_number>"
-            fi
-            run_round "${positional_args[0]}"
+            cmd_run_v18 "${positional_args[@]}"
             ;;
         setup)
             run_setup
