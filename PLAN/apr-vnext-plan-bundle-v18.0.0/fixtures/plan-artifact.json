@@ -55,6 +55,73 @@
       "sha256": "sha256:a560d9778257e23185cc06827e3c5aef4f7ff10c4b02f7e4e3bec6348f5ac1a7"
     }
   ],
+  "normalization_ladder": {
+    "current_stage": "bead_export_ready",
+    "drop_policy": "warn_with_provider_result_id",
+    "item_count_by_stage": {
+      "bead_export_ready": 1,
+      "full_plan_ir": 1,
+      "minimal_plan_ir": 1,
+      "raw_provider_output": 2
+    },
+    "stages": [
+      {
+        "input_provider_result_ids": [
+          "provider-result-demo-chatgpt_pro_first_plan",
+          "provider-result-demo-gemini_deep_think"
+        ],
+        "output_artifact_id": "raw-provider-output-demo",
+        "stage": "raw_provider_output",
+        "warnings": []
+      },
+      {
+        "input_artifact_id": "raw-provider-output-demo",
+        "output_artifact_id": "minimal-plan-ir-demo",
+        "preserved_refs": [
+          "provider_result_refs",
+          "source_refs",
+          "evidence_refs"
+        ],
+        "stage": "minimal_plan_ir",
+        "warnings": []
+      },
+      {
+        "input_artifact_id": "minimal-plan-ir-demo",
+        "output_artifact_id": "full-plan-ir-demo",
+        "required_enrichments": [
+          "acceptance_criteria",
+          "test_matrix",
+          "rollback_points",
+          "risks",
+          "contradictions"
+        ],
+        "stage": "full_plan_ir",
+        "warnings": [
+          {
+            "provider_result_id": "provider-result-demo-gemini_deep_think",
+            "reason": "reviewer phrasing was normalized into contradiction record instead of copied verbatim",
+            "warning_id": "WARN-NORMALIZED-REVIEWER-PROSE"
+          }
+        ]
+      },
+      {
+        "input_artifact_id": "full-plan-ir-demo",
+        "output_artifact_id": "plan-demo",
+        "readiness_checks": [
+          "has_title",
+          "has_kind",
+          "has_priority_suggestion",
+          "has_description",
+          "has_acceptance_criteria",
+          "has_tests",
+          "has_rollback_points",
+          "has_traceability"
+        ],
+        "stage": "bead_export_ready",
+        "warnings": []
+      }
+    ]
+  },
   "plan_id": "plan-demo",
   "plan_items": [
     {
@@ -71,6 +138,8 @@
       ],
       "item_id": "PLAN-ROUTE-GATING",
       "kind": "implementation_phase",
+      "normalization_stage": "bead_export_ready",
+      "priority_suggestion": 1,
       "provider_result_refs": [
         "provider-result-demo-chatgpt_pro_first_plan",
         "provider-result-demo-gemini_deep_think"
@@ -80,6 +149,18 @@
       ],
       "source_refs": [
         "SRC-LOCAL-BRIEF"
+      ],
+      "subtasks": [
+        {
+          "description": "Evaluate provider results and evidence before synthesis prompt submission.",
+          "item_id": "PLAN-ROUTE-GATING-1",
+          "title": "Pre-synthesis readiness check"
+        },
+        {
+          "description": "Verify final handoff evidence after synthesis completes.",
+          "item_id": "PLAN-ROUTE-GATING-2",
+          "title": "Final handoff evidence check"
+        }
       ],
       "test_ids": [
         "TEST-ROUTE-READINESS-CONTRACT"
@@ -120,6 +201,9 @@
     {
       "description": "Return to pre-synthesis route readiness if provider evidence or quorum records diverge.",
       "rollback_point_id": "RB-ROUTE-GATING",
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
       "verification_command": "apr providers readiness --json"
     }
   ],
@@ -151,6 +235,10 @@
       "expected": "route readiness fixture validates and synthesis gates are non-circular",
       "plan_item_ids": [
         "PLAN-ROUTE-GATING"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
       ],
       "test_id": "TEST-ROUTE-READINESS-CONTRACT",
       "type": "contract"

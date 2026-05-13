@@ -20,3 +20,7 @@ Use `synthesis_prompt_blocked_until_evidence_for` for evidence needed before the
 ## Traceable handoff artifacts
 
 The final plan cannot be handed off from prose alone. The plan artifact, traceability matrix, artifact index, and approval ledger must agree on plan item IDs, provider result IDs, evidence IDs, source baseline hash, test IDs, rollback point IDs, and human approval IDs. A final plan item is incomplete unless it points back to at least one source/provider/evidence reference or an explicit human decision.
+
+## Normalization Gate
+
+Synthesis consumes only `full_plan_ir` or `bead_export_ready` artifacts produced by the normalization ladder in `docs/plan-ir-normalization-ladder.md`. Raw provider output may be referenced by id and hash, but it must not be copied into the synthesis packet as executable planning instructions.
