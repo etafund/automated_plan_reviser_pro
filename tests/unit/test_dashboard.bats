@@ -353,6 +353,64 @@ EOF
     [[ "$CAPTURED_STDERR" != *$'\033'* ]]
 }
 
+@test "dashboard_should_use_compact: narrow geometry falls back from desktop" {
+    APR_LAYOUT=desktop run dashboard_should_use_compact 79 24
+    [[ "$status" -eq 0 ]]
+
+    APR_LAYOUT=desktop run dashboard_should_use_compact 80 23
+    [[ "$status" -eq 0 ]]
+
+    APR_LAYOUT=desktop run dashboard_should_use_compact 100 24
+    [[ "$status" -eq 1 ]]
+}
+
+@test "dashboard_should_use_compact: explicit compact wins on wide terminals" {
+    APR_LAYOUT=compact run dashboard_should_use_compact 120 40
+    [[ "$status" -eq 0 ]]
+}
+
+@test "dashboard_render_compact: single-column fallback omits chart and table" {
+    if ! command -v jq >/dev/null 2>&1; then
+        skip "jq not available"
+    fi
+
+    local metrics
+    metrics=$(cat << 'EOF'
+{
+  "rounds": [
+    {"round": 1, "timestamp": "2026-01-01T00:00:00Z", "output": {"char_count": 1200}},
+    {"round": 2, "timestamp": "2026-01-02T00:00:00Z", "output": {"char_count": 1900}, "changes_from_previous": {"lines_added": 20, "lines_deleted": 5, "similarity_score": 0.64}},
+    {"round": 3, "timestamp": "2026-01-03T00:00:00Z", "output": {"char_count": 2100}, "changes_from_previous": {"lines_added": 12, "lines_deleted": 3, "similarity_score": 0.82}}
+  ],
+  "convergence": {
+    "confidence": 0.82,
+    "estimated_rounds_remaining": 2
+  }
+}
+EOF
+)
+
+    NO_COLOR=1 capture_streams dashboard_render_compact "default" "$metrics" 64 18
+
+    log_test_actual "stderr" "$CAPTURED_STDERR"
+    [[ -z "$CAPTURED_STDOUT" ]]
+    [[ "$CAPTURED_STDERR" == *"DASHBOARD: default"* ]]
+    [[ "$CAPTURED_STDERR" == *"Mode: compact (64x18)"* ]]
+    [[ "$CAPTURED_STDERR" == *"Confidence: 82%"* ]]
+    [[ "$CAPTURED_STDERR" == *"Recent rounds"* ]]
+    [[ "$CAPTURED_STDERR" == *"#3 2.1K, +12-3, sim 0.82"* ]]
+    [[ "$CAPTURED_STDERR" == *"Full view: resize to 80x24 or run 'apr stats'"* ]]
+    [[ "$CAPTURED_STDERR" == *"Keys: r refresh, ? help, q quit"* ]]
+    [[ "$CAPTURED_STDERR" != *"OUTPUT SIZE TREND"* ]]
+    [[ "$CAPTURED_STDERR" != *"ROUND DETAILS"* ]]
+    [[ "$CAPTURED_STDERR" != *$'\033'* ]]
+
+    local max_width
+    max_width=$(printf '%s\n' "$CAPTURED_STDERR" | wc -L | awk '{print $1}')
+    [[ "$max_width" =~ ^[0-9]+$ ]]
+    (( max_width <= 80 ))
+}
+
 @test "dashboard_render: desktop sections appear in scan order and stay within 100 columns" {
     if ! command -v jq >/dev/null 2>&1; then
         skip "jq not available"

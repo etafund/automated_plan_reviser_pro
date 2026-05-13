@@ -13,7 +13,7 @@ load '../helpers/test_helper'
 setup() {
     setup_test_environment
     log_test_start "${BATS_TEST_NAME}"
-    cd "$TEST_PROJECT"
+    cd "$TEST_PROJECT" || return 1
     setup_test_workflow "default"
 }
 

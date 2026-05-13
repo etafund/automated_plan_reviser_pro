@@ -6865,8 +6865,8 @@ dashboard_clear() {
 
 dashboard_term_size() {
     local cols rows
-    cols=$(tput cols 2>/dev/null || echo "80")
-    rows=$(tput lines 2>/dev/null || echo "24")
+    cols=$(apr_term_width)
+    rows=$(apr_term_height)
     echo "$cols $rows"
 }
 
@@ -7110,6 +7110,112 @@ dashboard_render_round_table() {
     printf "Keys: Enter=details  d=diff  r=refresh  ?=help  q=quit\n" >&2
 }
 
+dashboard_should_use_compact() {
+    local cols="$1"
+    local rows="$2"
+    local layout
+    layout=$(apr_layout_mode 2>/dev/null) || layout="compact"
+
+    [[ "$layout" == "compact" ]] && return 0
+    (( cols < 80 || rows < 24 ))
+}
+
+dashboard_render_compact() {
+    local workflow="$1"
+    local metrics="$2"
+    local cols="${3:-$(apr_term_width)}"
+    local rows="${4:-$(apr_term_height)}"
+
+    local round_count average_size confidence confidence_pct estimated_remaining
+    round_count=$(echo "$metrics" | jq -r '.rounds | length' 2>/dev/null || echo "0")
+    average_size=$(echo "$metrics" | jq -r '[.rounds[].output.char_count // 0] | if length > 0 then (add / length | floor) else 0 end' 2>/dev/null || echo "0")
+    if [[ ! "$average_size" =~ ^[0-9]+$ ]]; then
+        average_size=0
+    fi
+    confidence=$(echo "$metrics" | jq -r '.convergence.confidence // 0' 2>/dev/null || echo "0")
+    confidence_pct=$(format_percent "$confidence")
+    estimated_remaining=$(echo "$metrics" | jq -r '.convergence.estimated_rounds_remaining // ""' 2>/dev/null || echo "")
+
+    local last_round last_ts last_date next_round
+    last_round=$(echo "$metrics" | jq -r '.rounds | sort_by(.round) | .[-1].round // ""' 2>/dev/null || echo "")
+    last_ts=$(echo "$metrics" | jq -r '.rounds | sort_by(.round) | .[-1].timestamp // ""' 2>/dev/null || echo "")
+    last_date=$(format_iso_date "$last_ts")
+    if [[ "$last_round" =~ ^[0-9]+$ ]]; then
+        next_round=$((last_round + 1))
+    else
+        next_round=1
+    fi
+
+    print_header "DASHBOARD: $workflow"
+    printf "  Mode: compact (%sx%s)\n" "$cols" "$rows" >&2
+    printf "  Rounds: %s\n" "$round_count" >&2
+    printf "  Avg output: %s\n" "$(format_bytes "$average_size")" >&2
+    printf "  Confidence: %s\n" "$confidence_pct" >&2
+    printf "  Remaining: %s rounds\n" "${estimated_remaining:-N/A}" >&2
+    printf "  Last: #%s on %s\n" "${last_round:-N/A}" "$last_date" >&2
+    printf "\n" >&2
+
+    printf "  Recent rounds\n" >&2
+    local round_num output_size added deleted similarity
+    while IFS=$'\t' read -r round_num output_size added deleted similarity; do
+        [[ -n "$round_num" ]] || continue
+        printf "    #%s %s, %s, sim %s\n" \
+            "$round_num" \
+            "$(format_bytes "$output_size")" \
+            "$(format_changes "$added" "$deleted")" \
+            "$(format_float "$similarity")" >&2
+    done < <(echo "$metrics" | jq -r '.rounds | sort_by(.round) | .[-5:][] | [.round, (.output.char_count // 0), (.changes_from_previous.lines_added // null), (.changes_from_previous.lines_deleted // null), (.changes_from_previous.similarity_score // null)] | @tsv' 2>/dev/null)
+
+    printf "\n" >&2
+    printf "  Full view: resize to 80x24 or run 'apr stats'\n" >&2
+    printf "  Next: apr run %s\n" "$next_round" >&2
+    printf "  Keys: r refresh, ? help, q quit\n" >&2
+}
+
+dashboard_show_compact_help() {
+    dashboard_clear
+    print_header "DASHBOARD HELP"
+    printf "  q  Quit dashboard\n" >&2
+    printf "  r  Refresh metrics\n" >&2
+    printf "  ?  Show this help\n" >&2
+    printf "\n" >&2
+    printf "  Resize to 80x24 for chart and round navigation.\n" >&2
+    printf "  Use 'apr stats' for a non-interactive summary.\n" >&2
+    printf "\nPress any key to return...\n" >&2
+    read -rsn1 _ </dev/tty
+}
+
+dashboard_run_compact() {
+    local workflow="$1"
+    local cols rows metrics key
+
+    while true; do
+        read -r cols rows < <(dashboard_term_size)
+        if ! dashboard_should_use_compact "$cols" "$rows"; then
+            return 2
+        fi
+
+        metrics=$(metrics_read "$workflow") || exit $EXIT_CONFIG_ERROR
+        dashboard_build_rounds "$metrics"
+
+        dashboard_clear
+        if (( DASHBOARD_TOTAL_ROUNDS <= 0 )); then
+            print_warning "No rounds in metrics for workflow '$workflow'"
+            print_info "Run 'apr run 1' or 'apr backfill' first"
+            return 0
+        fi
+
+        dashboard_render_compact "$workflow" "$metrics" "$cols" "$rows"
+        read -rsn1 key </dev/tty || key="q"
+        case "$key" in
+            r|R) continue ;;
+            '?'|h|H) dashboard_show_compact_help ;;
+            q|Q|$'\x1b') return 0 ;;
+            *) return 0 ;;
+        esac
+    done
+}
+
 dashboard_show_help() {
     dashboard_clear
     printf "APR DASHBOARD HELP\n" >&2
@@ -7212,10 +7318,9 @@ show_dashboard() {
 
     local cols rows
     read -r cols rows < <(dashboard_term_size)
-    if (( cols < 80 || rows < 24 )); then
-        print_error "Terminal too small for dashboard (${cols}x${rows})"
-        print_info "Resize to at least 80x24 and try again"
-        exit $EXIT_USAGE_ERROR
+    if dashboard_should_use_compact "$cols" "$rows"; then
+        dashboard_run_compact "$workflow" || true
+        return 0
     fi
 
     local selected=0
@@ -7226,11 +7331,14 @@ show_dashboard() {
 
     while true; do
         read -r cols rows < <(dashboard_term_size)
-        if (( cols < 80 || rows < 24 )); then
-            dashboard_clear
-            print_error "Terminal too small for dashboard (${cols}x${rows})"
-            print_info "Resize to at least 80x24 and press any key to retry"
-            read -rsn1 _ </dev/tty
+        if dashboard_should_use_compact "$cols" "$rows"; then
+            dashboard_show_cursor
+            DASHBOARD_ACTIVE=false
+            if dashboard_run_compact "$workflow"; then
+                return 0
+            fi
+            DASHBOARD_ACTIVE=true
+            dashboard_hide_cursor
             continue
         fi
 
