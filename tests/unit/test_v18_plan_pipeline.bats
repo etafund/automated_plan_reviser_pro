@@ -29,12 +29,21 @@ teardown() {
     run "${PROJECT_ROOT}/apr" plan compare --json
     assert_success
     assert_output --partial '"stage": "compare"'
+    assert_output --partial '"comparison_artifact"'
 }
 
 @test "apr plan synthesize returns success" {
     run "${PROJECT_ROOT}/apr" plan synthesize --json
     assert_success
     assert_output --partial '"stage": "synthesize"'
+    assert_output --partial '"synthesis_artifact"'
+}
+
+@test "apr plan compare is not canned 5/1 output" {
+    run "${PROJECT_ROOT}/apr" plan compare --json
+    assert_success
+    refute_output --partial '"agreements": 5'
+    refute_output --partial '"contradictions": 1'
 }
 
 @test "apr plan export-beads still works" {
