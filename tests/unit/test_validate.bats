@@ -264,3 +264,138 @@ assert len(d['hits']) >= 1
     [ "$(apr_lib_validate_error_count)" = "0" ]
     [ "$(apr_lib_validate_warning_count)" = "0" ]
 }
+
+# =============================================================================
+# bd-2lc: code-fence-aware prompt_qc
+# =============================================================================
+
+@test "prompt_qc bd-2lc: mustache inside code fence is IGNORED by default" {
+    local input
+    input=$'Real text.\n```\nEcho {{README}} here\n```\nMore real text.'
+    apr_lib_validate_prompt_qc "$input" "template"
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "prompt_qc bd-2lc: mustache OUTSIDE fence is still flagged" {
+    local input
+    input=$'Real text.\n{{README}}\n```\nIgnored: {{X}}\n```\nMore.'
+    apr_lib_validate_prompt_qc "$input" "template"
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+}
+
+@test "prompt_qc bd-2lc: APR_QC_RESPECT_CODE_FENCES=0 checks fenced text too" {
+    local input
+    input=$'```\nFenced {{X}}\n```'
+    APR_QC_RESPECT_CODE_FENCES=0 apr_lib_validate_prompt_qc "$input" "template"
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+}
+
+@test "prompt_qc bd-2lc: strict mode forces fence check even with default flag" {
+    local input
+    input=$'```\nFenced {{X}}\n```'
+    APR_FAIL_ON_WARN=1 apr_lib_validate_prompt_qc "$input" "template"
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+}
+
+@test "prompt_qc bd-2lc: directive residue inside fence is ignored by default" {
+    local input
+    input=$'doc text\n```\nexample: [[APR:FILE x]]\n```\nmore'
+    apr_lib_validate_prompt_qc "$input" "template"
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+# =============================================================================
+# bd-2lc: additional placeholder markers
+# =============================================================================
+
+@test "additional_placeholders: <REPLACE_ME> -> warning (default)" {
+    apr_lib_validate_additional_placeholders "Insert <REPLACE_ME> here" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "additional_placeholders: <INSERT> + <FIXME> + <TBD> all trigger the angle-marker warning" {
+    apr_lib_validate_additional_placeholders "Look at <INSERT>" "tpl"
+    apr_lib_validate_additional_placeholders "And <FIXME>" "tpl"
+    apr_lib_validate_additional_placeholders "And <TBD>" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "3" ]
+}
+
+@test "additional_placeholders: TODO:/TBD:/FIXME:/XXX: colon markers trigger warning" {
+    apr_lib_validate_additional_placeholders "TODO: fix this later" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    [ "${_APR_VALIDATE_WARN_CODE[0]}" = "prompt_qc_placeholder_marker" ]
+}
+
+@test "additional_placeholders: 'TODO' without colon is NOT flagged" {
+    apr_lib_validate_additional_placeholders "TODO is a verb here, no colon" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders: 'GOTO:CASE' (no word boundary) is NOT flagged" {
+    apr_lib_validate_additional_placeholders "switch GOTO:CASE_A" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders: angle marker inside code fence is ignored by default" {
+    local input
+    input=$'real text\n```\nexample <REPLACE_ME> here\n```\nmore real'
+    apr_lib_validate_additional_placeholders "$input" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders: TODO: in code fence is ignored by default" {
+    local input
+    input=$'doc text\n```\nTODO: ignored in fence\n```\nmore'
+    apr_lib_validate_additional_placeholders "$input" "tpl"
+    [ "$(apr_lib_validate_warning_count)" = "0" ]
+}
+
+@test "additional_placeholders: strict mode escalates after finalize" {
+    APR_FAIL_ON_WARN=1 apr_lib_validate_additional_placeholders "TODO: outside fence" "tpl"
+    # Recorded as warning first.
+    [ "$(apr_lib_validate_warning_count)" = "1" ]
+    APR_FAIL_ON_WARN=1 apr_lib_validate_finalize_strict
+    # Now also surfaced as error so the run blocks.
+    [ "$(apr_lib_validate_error_count)" = "1" ]
+    [[ "${_APR_VALIDATE_ERR_MSG[0]}" == *"[strict]"* ]]
+}
+
+# =============================================================================
+# strict_mode + finalize_strict
+# =============================================================================
+
+@test "strict_mode: false by default" {
+    run apr_lib_validate_strict_mode
+    [ "$status" -ne 0 ]
+}
+
+@test "strict_mode: true when APR_FAIL_ON_WARN=1" {
+    APR_FAIL_ON_WARN=1 apr_lib_validate_strict_mode && status=0 || status=$?
+    [ "$status" -eq 0 ]
+}
+
+@test "finalize_strict: no-op when not strict" {
+    apr_lib_validate_add_warning "x" "msg"
+    apr_lib_validate_finalize_strict
+    [ "$(apr_lib_validate_error_count)" = "0" ]
+}
+
+@test "finalize_strict: promotes ALL warnings to errors when strict" {
+    apr_lib_validate_add_warning "a" "warn-a"
+    apr_lib_validate_add_warning "b" "warn-b"
+    APR_FAIL_ON_WARN=1 apr_lib_validate_finalize_strict
+    [ "$(apr_lib_validate_error_count)" = "2" ]
+    [ "$(apr_lib_validate_warning_count)" = "2" ]
+    # Promoted errors keep the original code so consumers can join.
+    [ "${_APR_VALIDATE_ERR_CODE[0]}" = "a" ]
+    [ "${_APR_VALIDATE_ERR_CODE[1]}" = "b" ]
+}
+
+@test "finalize_strict: idempotent on already-error findings" {
+    apr_lib_validate_add_error "e1" "real-error"
+    apr_lib_validate_add_warning "w1" "warning"
+    APR_FAIL_ON_WARN=1 apr_lib_validate_finalize_strict
+    # Errors: original + 1 promoted warning = 2.
+    [ "$(apr_lib_validate_error_count)" = "2" ]
+}

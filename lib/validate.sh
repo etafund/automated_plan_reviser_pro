@@ -280,6 +280,10 @@ apr_lib_validate_emit_human() {
 # detection via APR_ALLOW_CURLY_PLACEHOLDERS=1; that's recorded as an
 # override.
 #
+# Code-fence awareness (bd-2lc): when APR_QC_RESPECT_CODE_FENCES=1
+# (default), matches inside triple-backtick fenced regions are ignored.
+# Strict mode (APR_FAIL_ON_WARN=1) disables this leniency.
+#
 # Lines triggering the match are recorded in details as a JSON array (max
 # 8 entries per residue class) so robot consumers get actionable detail.
 # -----------------------------------------------------------------------------
@@ -288,24 +292,31 @@ apr_lib_validate_prompt_qc() {
     local label="${2:-prompt}"
     local source="${3:-}"
 
-    # Mustache check (skippable).
+    local respect_fences="${APR_QC_RESPECT_CODE_FENCES:-1}"
+    # Strict mode overrides leniency: in strict, fenced text is checked too.
+    if apr_lib_validate_strict_mode; then
+        respect_fences=0
+    fi
+
+    # Mustache check (skippable via APR_ALLOW_CURLY_PLACEHOLDERS=1).
     if [[ "${APR_ALLOW_CURLY_PLACEHOLDERS:-}" != "1" ]]; then
         if [[ "$prompt" == *"{{"* || "$prompt" == *"}}"* ]]; then
             local hits
-            hits=$(printf '%s\n' "$prompt" | awk -v lbl="$label" 'index($0,"{{") || index($0,"}}") { printf "%s:%d", lbl, NR; exit_count++; if (exit_count >= 8) exit } END {}' | head -n 8)
-            # Convert hits (one source-locator per line) to a JSON array string.
-            local hits_json
-            hits_json=$(_apr_validate_lines_to_json "$hits")
-            local details
-            details=$(printf '{"label":"%s","hits":%s}' \
-                "$(_apr_validate_json_escape "$label")" \
-                "$hits_json")
-            apr_lib_validate_add_error \
-                "prompt_qc_failed" \
-                "Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these." \
-                "Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass." \
-                "$source" \
-                "$details"
+            hits=$(_apr_validate_qc_hits "$prompt" "$label" '{{|}}' "$respect_fences")
+            if [[ -n "$hits" ]]; then
+                local hits_json
+                hits_json=$(_apr_validate_lines_to_json "$hits")
+                local details
+                details=$(printf '{"label":"%s","hits":%s}' \
+                    "$(_apr_validate_json_escape "$label")" \
+                    "$hits_json")
+                apr_lib_validate_add_error \
+                    "prompt_qc_failed" \
+                    "Prompt contains unexpanded placeholders ('{{' / '}}'). APR does not substitute these." \
+                    "Remove {{...}} from the workflow template, or set APR_ALLOW_CURLY_PLACEHOLDERS=1 to bypass." \
+                    "$source" \
+                    "$details"
+            fi
         fi
     fi
 
@@ -315,20 +326,156 @@ apr_lib_validate_prompt_qc() {
     # without enabling directives).
     if [[ "$prompt" == *"[[APR:"* ]]; then
         local hits
-        hits=$(printf '%s\n' "$prompt" | awk -v lbl="$label" 'index($0,"[[APR:") { printf "%s:%d", lbl, NR; exit_count++; if (exit_count >= 8) exit } END {}' | head -n 8)
-        local hits_json
-        hits_json=$(_apr_validate_lines_to_json "$hits")
-        local details
-        details=$(printf '{"label":"%s","hits":%s}' \
-            "$(_apr_validate_json_escape "$label")" \
-            "$hits_json")
-        apr_lib_validate_add_error \
-            "prompt_qc_failed" \
-            "Prompt contains unexpanded APR directive residue ('[[APR:')." \
-            "Enable template_directives in the workflow or remove the directive text." \
-            "$source" \
-            "$details"
+        hits=$(_apr_validate_qc_hits "$prompt" "$label" '\[\[APR:' "$respect_fences")
+        if [[ -n "$hits" ]]; then
+            local hits_json
+            hits_json=$(_apr_validate_lines_to_json "$hits")
+            local details
+            details=$(printf '{"label":"%s","hits":%s}' \
+                "$(_apr_validate_json_escape "$label")" \
+                "$hits_json")
+            apr_lib_validate_add_error \
+                "prompt_qc_failed" \
+                "Prompt contains unexpanded APR directive residue ('[[APR:')." \
+                "Enable template_directives in the workflow or remove the directive text." \
+                "$source" \
+                "$details"
+        fi
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Internal: emit `label:N` lines for every NR where <pattern> matches.
+# When <respect_fences>=1, lines inside triple-backtick fenced regions
+# are skipped. Pattern is an awk ERE.
+# -----------------------------------------------------------------------------
+_apr_validate_qc_hits() {
+    local prompt="$1" label="$2" pattern="$3" respect_fences="$4"
+    printf '%s\n' "$prompt" | awk \
+        -v lbl="$label" \
+        -v pat="$pattern" \
+        -v respect_fences="$respect_fences" '
+        BEGIN { in_fence = 0; count = 0 }
+        # Fence toggle (triple backtick optionally with language tag).
+        /^[[:space:]]*```/ {
+            if (respect_fences == "1") {
+                in_fence = !in_fence
+                next
+            }
+        }
+        respect_fences == "1" && in_fence { next }
+        $0 ~ pat {
+            printf "%s:%d\n", lbl, NR
+            count++
+            if (count >= 8) exit
+        }
+    '
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_additional_placeholders <prompt_text> [<label>] [<source>]
+#
+# Detect common "template not filled" markers that aren't mustache or
+# APR directive residue (bd-2lc). These are recorded as WARNINGS by
+# default (heuristic; false positives are possible), promoted to ERRORS
+# in strict mode (`apr_lib_validate_finalize_strict`).
+#
+# Detected classes:
+#   - <REPLACE_ME>, <INSERT>, <FIXME>, <TBD>           (angle-bracket markers)
+#   - TODO: / TBD: / FIXME: / XXX:                     (colon-suffixed markers)
+#
+# Skipped inside triple-backtick fences when APR_QC_RESPECT_CODE_FENCES=1
+# (default).
+# -----------------------------------------------------------------------------
+apr_lib_validate_additional_placeholders() {
+    local prompt="${1-}"
+    local label="${2:-prompt}"
+    local source="${3:-}"
+
+    local respect_fences="${APR_QC_RESPECT_CODE_FENCES:-1}"
+    if apr_lib_validate_strict_mode; then
+        respect_fences=0
+    fi
+
+    # Angle-bracket markers — distinct error code class so consumers can
+    # filter independently.
+    local angle_pattern='<(REPLACE_ME|INSERT|FIXME|TBD)>'
+    if printf '%s' "$prompt" | grep -Eq "$angle_pattern"; then
+        local hits
+        hits=$(_apr_validate_qc_hits "$prompt" "$label" "$angle_pattern" "$respect_fences")
+        if [[ -n "$hits" ]]; then
+            local hits_json
+            hits_json=$(_apr_validate_lines_to_json "$hits")
+            local details
+            details=$(printf '{"label":"%s","class":"angle_marker","hits":%s}' \
+                "$(_apr_validate_json_escape "$label")" "$hits_json")
+            apr_lib_validate_add_warning \
+                "prompt_qc_placeholder_marker" \
+                "Prompt contains template marker (<REPLACE_ME>, <INSERT>, <FIXME>, <TBD>)." \
+                "Fill in the marker or remove it. Set APR_QC_RESPECT_CODE_FENCES=0 to also check fenced examples." \
+                "$source" \
+                "$details"
+        fi
+    fi
+
+    # Colon-suffixed markers. Require word boundary on the left so we don't
+    # match "GOTO:CASE" etc.; standard awk ERE here.
+    local colon_pattern='(^|[^[:alnum:]_])(TODO|TBD|FIXME|XXX):'
+    if printf '%s' "$prompt" | grep -Eq "$colon_pattern"; then
+        local hits
+        hits=$(_apr_validate_qc_hits "$prompt" "$label" "$colon_pattern" "$respect_fences")
+        if [[ -n "$hits" ]]; then
+            local hits_json
+            hits_json=$(_apr_validate_lines_to_json "$hits")
+            local details
+            details=$(printf '{"label":"%s","class":"colon_marker","hits":%s}' \
+                "$(_apr_validate_json_escape "$label")" "$hits_json")
+            apr_lib_validate_add_warning \
+                "prompt_qc_placeholder_marker" \
+                "Prompt contains 'TODO:'/'TBD:'/'FIXME:'/'XXX:' marker outside code fences." \
+                "Resolve the marker, move it inside a code fence, or set APR_FAIL_ON_WARN=0 to keep this as a warning." \
+                "$source" \
+                "$details"
+        fi
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_strict_mode
+#
+# Return 0 iff strict mode is active (APR_FAIL_ON_WARN=1).
+# -----------------------------------------------------------------------------
+apr_lib_validate_strict_mode() {
+    [[ "${APR_FAIL_ON_WARN:-}" == "1" ]]
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_finalize_strict
+#
+# In strict mode, promote ALL recorded warnings to errors so any
+# warning blocks the run. Idempotent: warnings stay in the warnings
+# bucket too (audit trail), but their codes/messages/hints are
+# additionally appended to the errors bucket.
+#
+# Returns 0 always.
+# -----------------------------------------------------------------------------
+apr_lib_validate_finalize_strict() {
+    if ! apr_lib_validate_strict_mode; then
+        return 0
+    fi
+    if [[ -z "${_APR_VALIDATE_WARN_CODE[*]+set}" ]]; then
+        return 0
+    fi
+    local i
+    for i in "${!_APR_VALIDATE_WARN_CODE[@]}"; do
+        apr_lib_validate_add_error \
+            "${_APR_VALIDATE_WARN_CODE[$i]}" \
+            "[strict] ${_APR_VALIDATE_WARN_MSG[$i]}" \
+            "${_APR_VALIDATE_WARN_HINT[$i]}" \
+            "${_APR_VALIDATE_WARN_SOURCE[$i]}" \
+            "${_APR_VALIDATE_WARN_DETAILS[$i]}"
+    done
+    return 0
 }
 
 # -----------------------------------------------------------------------------
