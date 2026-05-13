@@ -1,0 +1,11 @@
+{
+  "schema_version": "apr_queue_event.v1",
+  "ts": "2026-05-12T18:00:00Z",
+  "event": "fail",
+  "entry_id": "x",
+  "workflow": "fcp-review",
+  "ok": true,
+  "code": "busy",
+  "exit_code": 12,
+  "finished_at": "2026-05-12T18:00:00Z"
+}

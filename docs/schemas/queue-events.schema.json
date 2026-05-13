@@ -104,11 +104,21 @@
     },
     {
       "if": { "properties": { "event": { "const": "finish" } } },
-      "then": { "required": ["ok", "code", "exit_code", "finished_at"] }
+      "then": {
+        "required": ["ok", "code", "exit_code", "finished_at"],
+        "properties": {
+          "ok": { "const": true }
+        }
+      }
     },
     {
       "if": { "properties": { "event": { "const": "fail" } } },
-      "then": { "required": ["ok", "code", "exit_code", "finished_at"] }
+      "then": {
+        "required": ["ok", "code", "exit_code", "finished_at"],
+        "properties": {
+          "ok": { "const": false }
+        }
+      }
     },
     {
       "if": { "properties": { "event": { "const": "cancel" } } },
