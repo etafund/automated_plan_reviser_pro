@@ -1,0 +1,152 @@
+{
+  "bundle_version": "v18.0.0",
+  "invariant_cases": [
+    {
+      "area": "provider routing",
+      "case_id": "route_slots_covered_by_policy",
+      "description": "Every planned provider route slot is present in both provider-access policy and model-reasoning policy.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "provider routing",
+      "case_id": "stage_slot_sets_match_route_declarations",
+      "description": "Stage required/optional slot maps agree with top-level route required/optional slot declarations.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "browser evidence",
+      "case_id": "browser_slots_require_verified_evidence",
+      "description": "Browser-backed ChatGPT/Gemini critical slots require evidence in access policy and readiness state.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "review quorum",
+      "case_id": "quorum_policy_matches_route_and_readiness",
+      "description": "Provider route, review-quorum policy, and readiness quorum fields carry the same reviewer requirements.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "stage gating",
+      "case_id": "synthesis_gates_avoid_circular_evidence_dependency",
+      "description": "Synthesis prompt readiness must not wait on synthesis evidence, while final handoff must require it.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "provider policy",
+      "case_id": "api_allowed_routes_have_runtime_budgets",
+      "description": "Allowed API routes are identical across provider access and model policy, and have runtime budgets.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "provider policy",
+      "case_id": "protected_browser_slots_forbid_api_substitution",
+      "description": "Protected ChatGPT/Gemini browser slots forbid direct API substitution and require Oracle/browser access.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "source and prompt",
+      "case_id": "prompt_source_hashes_align",
+      "description": "Prompt manifest and prompt context packet reference the same source baseline, trust, policy, and serialization hashes.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "source trust",
+      "case_id": "source_trust_covers_baseline_sources",
+      "description": "Every source baseline id has a source-trust entry before prompt context assembly.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "source trust",
+      "case_id": "quarantine_propagates_to_prompt_context",
+      "description": "Quarantined provider instructions are represented in the prompt context packet and kept data-only.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "serialization",
+      "case_id": "json_canonical_storage_remains_pinned",
+      "description": "Canonical artifact storage remains JSON, with TOON/tru optional and gated by legal/user approval.",
+      "requirement_level": "MUST"
+    },
+    {
+      "area": "provider policy",
+      "case_id": "deepseek_search_policy_matches_budget_and_prompting",
+      "description": "DeepSeek V4 Pro search route uses official API, APR search tooling, max effort, and transient reasoning storage.",
+      "requirement_level": "MUST"
+    }
+  ],
+  "schema_cases": [
+    {
+      "case_id": "source_baseline_schema",
+      "fixture": "fixtures/source-baseline.json",
+      "requirement": "source baseline fixture validates",
+      "schema": "contracts/source-baseline.schema.json"
+    },
+    {
+      "case_id": "source_trust_schema",
+      "fixture": "fixtures/source-trust.json",
+      "requirement": "source trust fixture validates",
+      "schema": "contracts/source-trust.schema.json"
+    },
+    {
+      "case_id": "prompt_policy_schema",
+      "fixture": "fixtures/prompting-policy.json",
+      "requirement": "prompt policy fixture validates",
+      "schema": "contracts/prompt-policy.schema.json"
+    },
+    {
+      "case_id": "prompt_manifest_schema",
+      "fixture": "fixtures/prompt-manifest.json",
+      "requirement": "prompt manifest fixture validates",
+      "schema": "contracts/prompt-manifest.schema.json"
+    },
+    {
+      "case_id": "prompt_context_packet_schema",
+      "fixture": "fixtures/prompt-context-packet.json",
+      "requirement": "prompt context packet fixture validates",
+      "schema": "contracts/prompt-context-packet.schema.json"
+    },
+    {
+      "case_id": "context_serialization_policy_schema",
+      "fixture": "fixtures/context-serialization-policy.json",
+      "requirement": "context serialization policy fixture validates",
+      "schema": "contracts/context-serialization-policy.schema.json"
+    },
+    {
+      "case_id": "provider_access_policy_schema",
+      "fixture": "fixtures/provider-access-policy.json",
+      "requirement": "provider access policy fixture validates",
+      "schema": "contracts/provider-access-policy.schema.json"
+    },
+    {
+      "case_id": "model_reasoning_policy_schema",
+      "fixture": "fixtures/model-reasoning-policy.json",
+      "requirement": "model reasoning policy fixture validates",
+      "schema": "contracts/model-reasoning-policy.schema.json"
+    },
+    {
+      "case_id": "provider_route_schema",
+      "fixture": "fixtures/provider-route.balanced.json",
+      "requirement": "balanced provider route fixture validates",
+      "schema": "contracts/provider-route.schema.json"
+    },
+    {
+      "case_id": "route_readiness_schema",
+      "fixture": "fixtures/route-readiness.balanced.json",
+      "requirement": "balanced route readiness fixture validates",
+      "schema": "contracts/route-readiness.schema.json"
+    },
+    {
+      "case_id": "review_quorum_schema",
+      "fixture": "fixtures/review-quorum.balanced.json",
+      "requirement": "balanced review quorum fixture validates",
+      "schema": "contracts/review-quorum.schema.json"
+    },
+    {
+      "case_id": "runtime_budget_schema",
+      "fixture": "fixtures/runtime-budget.json",
+      "requirement": "runtime budget fixture validates",
+      "schema": "contracts/runtime-budget.schema.json"
+    }
+  ],
+  "schema_version": "schema_cross_invariant_cases.v1"
+}
