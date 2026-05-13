@@ -207,7 +207,7 @@ assert_envelope() {
 @test "adapters/xai-deepseek: --check-env demands the api_key_env var to be set" {
     # Force the env var to be empty/absent; the script should mark
     # api_key_present == false and report a failing envelope.
-    XAI_API_KEY= run_with_artifacts python3 "$XAI_DEEPSEEK" --provider xai --check-env --json
+    XAI_API_KEY='' run_with_artifacts python3 "$XAI_DEEPSEEK" --provider xai --check-env --json
     [[ "$status" -ne 0 ]]
     jq -e '.data.api_key_present == false' "$ARTIFACT_DIR/stdout.log" >/dev/null
 }
@@ -287,7 +287,8 @@ assert_envelope() {
 @test "adapters/claude-codex: claude invoke with --prompt succeeds and labels the provider_slot" {
     local prompt="$TEST_DIR/prompt.txt"
     printf 'test prompt\n' > "$prompt"
-    run_with_artifacts python3 "$CLAUDE_CODEX" \
+    APR_CLAUDE_INVOKE_CMD="python3 -c \"import sys; print('claude integration saw: '+sys.stdin.read().strip())\"" \
+        run_with_artifacts python3 "$CLAUDE_CODEX" \
         --provider claude --action invoke --prompt "$prompt" --json
     [[ "$status" -eq 0 ]]
     jq -e '

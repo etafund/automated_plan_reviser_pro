@@ -68,12 +68,12 @@ def invoke_cli(provider, prompt_text):
     if provider == 'claude':
         command_text = os.environ.get(
             'APR_CLAUDE_INVOKE_CMD',
-            "python3 -c \"import sys; p=sys.stdin.read(); print('claude-mock-response\\n'+p.strip())\"",
+            'claude --model claude-opus-4-7 --effort max',
         )
     else:
         command_text = os.environ.get(
             'APR_CODEX_INVOKE_CMD',
-            "python3 -c \"import sys; p=sys.stdin.read(); print('codex-mock-response\\n'+p.strip())\"",
+            'codex --model gpt-5.5',
         )
 
     command = shlex.split(command_text)

@@ -25,10 +25,14 @@ teardown() {
 
 @test "Claude adapter: invoke success" {
     echo "test prompt" > prompt.txt
-    run python3 "$SCRIPT_PATH" --provider claude --action invoke --prompt prompt.txt --json
+    local output_file="$TEST_DIR/claude-output.txt"
+    APR_CLAUDE_INVOKE_CMD="python3 -c \"import sys; print('claude saw: '+sys.stdin.read().strip())\"" \
+        run python3 "$SCRIPT_PATH" --provider claude --action invoke --prompt prompt.txt --output "$output_file" --json
     assert_success
     assert_output --partial '"status": "success"'
     assert_output --partial '"provider_slot": "claude_code_opus"'
+    [[ -f "$output_file" ]]
+    grep -Fq 'claude saw: test prompt' "$output_file"
 }
 
 @test "Codex adapter: intake transcript" {
@@ -36,6 +40,18 @@ teardown() {
     assert_success
     assert_output --partial '"schema_version": "codex_intake.v1"'
     assert_output --partial '"formal_first_plan": false'
+}
+
+@test "Codex adapter: invoke reads prompt and calls configured CLI" {
+    echo "codex prompt" > prompt.txt
+    local output_file="$TEST_DIR/codex-output.txt"
+    APR_CODEX_INVOKE_CMD="python3 -c \"import sys; print('codex saw: '+sys.stdin.read().strip())\"" \
+        run python3 "$SCRIPT_PATH" --provider codex --action invoke --prompt prompt.txt --output "$output_file" --json
+    assert_success
+    assert_output --partial '"status": "success"'
+    assert_output --partial '"provider_slot": "codex_thinking_fast_draft"'
+    [[ -f "$output_file" ]]
+    grep -Fq 'codex saw: codex prompt' "$output_file"
 }
 
 @test "Fail on missing prompt for Claude invoke" {

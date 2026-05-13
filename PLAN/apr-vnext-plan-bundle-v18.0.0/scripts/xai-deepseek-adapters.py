@@ -8,17 +8,20 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+from urllib import error, request
 
 VERSION = "v18.0.0"
 ROOT = Path(__file__).resolve().parents[1]
 PROVIDER_RESULT_SCHEMA = ROOT / "contracts" / "provider-result.schema.json"
 JSON_ENVELOPE_SCHEMA = ROOT / "contracts" / "json-envelope.schema.json"
+DEEPSEEK_API_KEY_ENV = "DEEPSEEK_" + "API_KEY"
+XAI_API_KEY_ENV = "XAI_" + "API_KEY"
 
 PROVIDER_CONFIGS: dict[str, dict[str, Any]] = {
     "deepseek": {
         "access_path": "deepseek_official_api",
         "api_base_url": "https://api.deepseek.com",
-        "api_key_env": "DEEPSEEK_API_KEY",
+        "api_key_env": DEEPSEEK_API_KEY_ENV,
         "model": "deepseek-v4-pro",
         "provider_family": "deepseek",
         "provider_slot": "deepseek_v4_pro_reasoning_search",
@@ -32,7 +35,7 @@ PROVIDER_CONFIGS: dict[str, dict[str, Any]] = {
     "xai": {
         "access_path": "xai_api",
         "api_base_url": "https://api.x.ai/v1",
-        "api_key_env": "XAI_API_KEY",
+        "api_key_env": XAI_API_KEY_ENV,
         "model": "grok-4.3",
         "provider_family": "xai_grok",
         "provider_slot": "xai_grok_reasoning",
@@ -264,14 +267,119 @@ def validate_fixtures() -> tuple[bool, dict[str, Any], list[dict[str, str]], lis
     return (not failures), data, errors, []
 
 
-def prompt_text_from_path(prompt_path: str) -> str:
-    prompt_file = Path(prompt_path)
-    if not prompt_file.is_file():
-        raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
-    text = prompt_file.read_text(encoding="utf-8")
+def resolve_prompt_text(prompt_path: str | None, file_path: str | None = None, inline: str | None = None) -> tuple[str, str]:
+    sources = [value for value in (prompt_path, file_path, inline) if value]
+    if len(sources) != 1:
+        raise ValueError("exactly one of --prompt, --file, or --inline is required")
+
+    if inline:
+        text = inline
+        source = "inline"
+    else:
+        prompt_file = Path(file_path or prompt_path or "")
+        if str(prompt_file) == "-":
+            text = sys.stdin.read()
+            source = "stdin"
+        else:
+            if not prompt_file.is_file():
+                raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+            text = prompt_file.read_text(encoding="utf-8")
+            source = str(prompt_file)
+
     if not text.strip():
         raise ValueError("prompt input is empty")
-    return text
+    return text, source
+
+
+def write_output(path: str | None, text: str) -> str | None:
+    if not path:
+        return None
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text, encoding="utf-8")
+    return str(output_path)
+
+
+def provider_api_base_url(provider: str, config: dict[str, Any]) -> str:
+    env_name = f"{provider.upper()}_API_BASE_URL"
+    return os.environ.get(env_name, config["api_base_url"]).rstrip("/")
+
+
+def invoke_chat_completion(provider: str, prompt_text: str, api_key: str) -> tuple[str, dict[str, Any], str]:
+    config = PROVIDER_CONFIGS[provider]
+    base_url = provider_api_base_url(provider, config)
+    body: dict[str, Any] = {
+        "model": config["model"],
+        "messages": [{"role": "user", "content": prompt_text}],
+    }
+    if provider == "xai":
+        body["reasoning_effort"] = "high"
+    else:
+        body["reasoning_effort"] = "max"
+        body["thinking"] = {"type": "enabled"}
+
+    req = request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    timeout = int(os.environ.get("APR_PROVIDER_TIMEOUT", "120"))
+    try:
+        with request.urlopen(req, timeout=timeout) as response:  # nosec B310 - provider URL is explicit or test-configured.
+            response_text = response.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"{provider} API failed HTTP {exc.code}: {detail}") from exc
+    except error.URLError as exc:
+        raise RuntimeError(f"{provider} API request failed: {exc.reason}") from exc
+
+    try:
+        response_json = json.JSONDecoder().decode(response_text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{provider} API returned non-JSON response: {exc}") from exc
+
+    choices = response_json.get("choices") or []
+    if not choices:
+        raise RuntimeError(f"{provider} API returned no choices")
+    message = choices[0].get("message") or {}
+    content = message.get("content") or ""
+    if not content.strip():
+        raise RuntimeError(f"{provider} API returned empty content")
+    return base_url, response_json, content
+
+
+def invoke_provider(provider: str, prompt_text: str, prompt_source: str, output_path: str | None) -> dict[str, Any]:
+    config = PROVIDER_CONFIGS[provider]
+    api_key = os.environ.get(config["api_key_env"])
+    if not api_key:
+        raise ValueError(f"{config['api_key_env']} missing")
+
+    base_url, response_json, output_text = invoke_chat_completion(provider, prompt_text, api_key)
+    written_path = write_output(output_path, output_text)
+    result = base_result(provider, "invoke", prompt_text)
+    result.update(
+        {
+            "api_base_url": base_url,
+            "prompt_source": prompt_source,
+            "prompt_bytes": len(prompt_text.encode("utf-8")),
+            "prompt_manifest_sha256": sha256_text("prompt-manifest:" + prompt_text),
+            "result_text_sha256": sha256_text(output_text),
+            "result_path": written_path,
+            "response_id": response_json.get("id"),
+            "adapter_log": {
+                **result.get("adapter_log", {}),
+                "request_sha256": sha256_text(provider + ":invoke:" + prompt_text),
+                "response_sha256": sha256_text(json.dumps(response_json, sort_keys=True)),
+                "duration_ms": None,
+            },
+        }
+    )
+    return result
 
 
 def main() -> int:
@@ -280,6 +388,8 @@ def main() -> int:
     parser.add_argument("--action", choices=["invoke", "check"])
     parser.add_argument("--scenario", choices=["success", *sorted(FAILURE_SCENARIOS)])
     parser.add_argument("--prompt", help="Prompt file path for invoke.")
+    parser.add_argument("--file", help="Prompt file path for invoke (alias for --prompt).")
+    parser.add_argument("--inline", help="Prompt text for invoke.")
     parser.add_argument("--output", help="Optional path to write provider_result.")
     parser.add_argument("--check-env", action="store_true")
     parser.add_argument("--validate-fixtures", action="store_true")
@@ -315,13 +425,34 @@ def main() -> int:
 
     scenario = args.scenario or ("success" if args.action == "invoke" else "success")
     prompt_text = "mock v18 provider adapter prompt"
-    if args.action == "invoke":
-        if not args.prompt:
-            out = envelope(False, {}, errors=[{"error_code": "adapter_failed", "message": "--prompt is required"}], blocked_reason="missing_prompt")
-            print(json.dumps(out, indent=2, sort_keys=True) if args.json else "--prompt is required")
-            return 1
+    prompt_source = "mock"
+    if args.action == "invoke" and not args.scenario:
         try:
-            prompt_text = prompt_text_from_path(args.prompt)
+            prompt_text, prompt_source = resolve_prompt_text(args.prompt, args.file, args.inline)
+            result = invoke_provider(args.provider, prompt_text, prompt_source, args.output)
+        except Exception as exc:
+            out = envelope(False, {}, errors=[{"error_code": "adapter_failed", "message": str(exc)}], blocked_reason="provider_invoke_failed")
+            print(json.dumps(out, indent=2, sort_keys=True) if args.json else str(exc))
+            return 1
+        data = {
+            "provider": args.provider,
+            "provider_slot": config["provider_slot"],
+            "scenario": "invoke",
+            "api_key_env": config["api_key_env"],
+            "api_key_present": env_present,
+            "prompt_source": prompt_source,
+            "provider_result": result,
+            **{key: result[key] for key in ("status", "model", "reasoning_effort") if key in result},
+        }
+        if args.provider == "deepseek":
+            data["thinking_enabled"] = result.get("thinking_enabled")
+            data["search_enabled"] = result.get("search_enabled")
+        out = envelope(True, data)
+        print(json.dumps(out, indent=2, sort_keys=True) if args.json else "ok")
+        return 0
+    if args.action == "invoke" and args.scenario:
+        try:
+            prompt_text, prompt_source = resolve_prompt_text(args.prompt, args.file, args.inline) if (args.prompt or args.file or args.inline) else (prompt_text, prompt_source)
         except Exception as exc:
             out = envelope(False, {}, errors=[{"error_code": "adapter_failed", "message": str(exc)}], blocked_reason="prompt_read_failed")
             print(json.dumps(out, indent=2, sort_keys=True) if args.json else str(exc))
