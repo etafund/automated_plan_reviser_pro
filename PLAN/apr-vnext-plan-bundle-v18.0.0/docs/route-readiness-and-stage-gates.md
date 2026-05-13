@@ -29,6 +29,8 @@ APR must not treat preflight readiness as synthesis eligibility.
 
 `chatgpt_pro_first_plan` is required for `first_plan`; `gemini_deep_think` is required for `independent_review` in balanced/audit; `chatgpt_pro_synthesis` is required for `synthesis`.
 
+`docs/execution-profile-route-compiler.md` defines how `fast`, `balanced`, and `audit` profiles compile into deterministic provider-route plans before stage readiness is evaluated.
+
 
 ## v18 correction: synthesis prompt gate versus final handoff gate
 

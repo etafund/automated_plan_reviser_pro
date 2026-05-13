@@ -1,0 +1,59 @@
+{
+  "bundle_version": "v18.0.0",
+  "capabilities": [
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/codex-intake.json",
+      "provider_family": "openai_codex",
+      "provider_slot": "codex_thinking_fast_draft",
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/provider-access-policy.json#/live_routes/chatgpt_pro_first_plan",
+      "provider_family": "chatgpt",
+      "provider_slot": "chatgpt_pro_first_plan",
+      "requires_browser_evidence_before_submit": true,
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/provider-access-policy.json#/live_routes/gemini_deep_think",
+      "provider_family": "gemini",
+      "provider_slot": "gemini_deep_think",
+      "requires_browser_evidence_before_submit": true,
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/provider-capability.claude.json",
+      "provider_family": "claude",
+      "provider_slot": "claude_code_opus",
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/provider-capability.xai.json",
+      "provider_family": "xai_grok",
+      "provider_slot": "xai_grok_reasoning",
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T12:00:00Z",
+      "input_ref": "fixtures/provider-capability.deepseek.json",
+      "provider_family": "deepseek",
+      "provider_slot": "deepseek_v4_pro_reasoning_search",
+      "status": "ready"
+    },
+    {
+      "checked_at": "2026-05-12T00:00:00Z",
+      "input_ref": "fixtures/provider-access-policy.json#/live_routes/chatgpt_pro_synthesis",
+      "provider_family": "chatgpt",
+      "provider_slot": "chatgpt_pro_synthesis",
+      "requires_browser_evidence_before_submit": true,
+      "status": "ready"
+    }
+  ],
+  "capability_set_id": "v18-local-fixed-route-compiler",
+  "schema_version": "route_compiler_capabilities.v1"
+}

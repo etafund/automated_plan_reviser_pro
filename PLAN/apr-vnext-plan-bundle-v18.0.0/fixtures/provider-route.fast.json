@@ -1,0 +1,139 @@
+{
+  "bundle_version": "v18.0.0",
+  "capability_set_id": "v18-local-fixed-route-compiler",
+  "compiler": {
+    "compile_rule": "profile+provider-policy+capability-set+source-baseline+runtime-budget -> provider-route",
+    "deterministic": true,
+    "input_hash": "sha256:35ca75ddbdfc401510e3b2cb11377450e25343cb8a84eb46a3e16f2bba94eee5",
+    "schema_version": "route_compiler.v1"
+  },
+  "fallback_policy": {
+    "codex_fast_draft_is_not_formal_first_plan": true,
+    "fail_closed_for_required_browser_modes": true,
+    "synthesis_requires_promotion_or_waiver": true
+  },
+  "input_hashes": {
+    "capability_set": "sha256:9a442375f26fba613fc14438d5c767c6dda443df9ca7a62a51530e18b712c632",
+    "execution_profile": "sha256:0461687c673e034e9eb411ac9aced193851f722bb6f78b7017a3a0360ae9cccc",
+    "provider_access_policy": "sha256:676d87fee41211c2b857dab14047be8aa5707a0f28570892ef359b275adbdb52",
+    "runtime_budget": "sha256:d30b5aad36be4dd7443aa628812a1b2d1317e2e4b1c9743df692f0583e7e0a3e",
+    "source_baseline": "sha256:91f3c661e2f205d9890ac11e9f82bc65b788df0909df6fd75f39d7f032b463b2"
+  },
+  "optional_slots": [
+    "chatgpt_pro_first_plan"
+  ],
+  "profile": "fast",
+  "readiness_contract": {
+    "final_handoff_requires": [
+      "verified_synthesis_evidence",
+      "human_review_packet",
+      "approval_ledger_final_handoff"
+    ],
+    "preflight_ready_scope": "profile_route_compiled",
+    "synthesis_requires": [
+      "normalized_provider_results",
+      "compare_result",
+      "review_quorum_met_or_waived"
+    ]
+  },
+  "required_slots": [
+    "codex_thinking_fast_draft"
+  ],
+  "resource_locks": [],
+  "review_quorum": {
+    "independent_review_min_total": 0,
+    "independent_review_optional_slots": [],
+    "independent_review_required_slots": [],
+    "optional_review_min_successes": 0
+  },
+  "review_quorum_policy": "fixtures/review-quorum.balanced.json",
+  "route_plan_id": "route-plan.fast.35ca75ddbdfc",
+  "routes": [
+    {
+      "access_path": "codex_cli_subscription",
+      "api_allowed": false,
+      "cache_key": "route-cache.v1.fast.codex_thinking_fast_draft.676d87fee412.9a442375f26f.91f3c661e2f2.d30b5aad36be",
+      "capability_checked_at": "2026-05-12T00:00:00Z",
+      "capability_probe_required": true,
+      "capability_ref": "fixtures/codex-intake.json",
+      "capability_status": "ready",
+      "depends_on_stage_ids": [],
+      "eligible_for_synthesis": false,
+      "model": "gpt-5.5",
+      "oracle_allowed": false,
+      "provider_family": "openai_codex",
+      "provider_role": "exploratory_context_draft",
+      "purpose": "fast_exploratory_draft_only",
+      "quorum_candidate": false,
+      "readiness_state": "ready",
+      "reasoning_effort": "xhigh",
+      "required": true,
+      "route_id": "route.fast.intake.codex_thinking_fast_draft",
+      "slot": "codex_thinking_fast_draft",
+      "stage": "intake",
+      "stage_id": "stage.fast.intake"
+    },
+    {
+      "access_path": "oracle_browser_remote_or_local",
+      "api_allowed": false,
+      "browser_effort_strategy": "select_highest_visible",
+      "cache_key": "route-cache.v1.fast.chatgpt_pro_first_plan.676d87fee412.9a442375f26f.91f3c661e2f2.d30b5aad36be",
+      "capability_checked_at": "2026-05-12T00:00:00Z",
+      "capability_ref": "fixtures/provider-access-policy.json#/live_routes/chatgpt_pro_first_plan",
+      "capability_status": "ready",
+      "depends_on_stage_ids": [
+        "stage.fast.intake"
+      ],
+      "effort_rank_required": "highest_visible",
+      "eligible_for_synthesis": true,
+      "evidence_required": true,
+      "model": "chatgpt-pro-latest",
+      "model_selector": "Pro",
+      "normalized_effort": "max_browser_available",
+      "oracle_allowed": true,
+      "provider_family": "chatgpt",
+      "provider_role": "optional_formal_first_plan_upgrade",
+      "purpose": "formal_first_plan_balanced_audit",
+      "quorum_candidate": false,
+      "readiness_state": "ready",
+      "requested_reasoning_effort": "max_browser_available",
+      "required": false,
+      "route_id": "route.fast.first_plan.chatgpt_pro_first_plan",
+      "slot": "chatgpt_pro_first_plan",
+      "stage": "first_plan",
+      "stage_id": "stage.fast.first_plan"
+    }
+  ],
+  "runtime_budget": {
+    "browser_slots": [
+      "chatgpt_pro_first_plan"
+    ],
+    "max_cost_usd": 0,
+    "max_wall_minutes": 45,
+    "required_approvals": []
+  },
+  "schema_version": "provider_route.v1",
+  "source_policy": "baseline",
+  "stage_optional_slots": {
+    "first_plan": [
+      "chatgpt_pro_first_plan"
+    ]
+  },
+  "stage_order": [
+    "intake",
+    "first_plan",
+    "independent_review",
+    "compare",
+    "synthesis",
+    "human_review",
+    "handoff"
+  ],
+  "stage_required_slots": {
+    "intake": [
+      "codex_thinking_fast_draft"
+    ]
+  },
+  "warnings": [
+    "fast profile uses Codex CLI as exploratory context only; it cannot satisfy formal-first-plan or synthesis gates without explicit promotion or waiver"
+  ]
+}
