@@ -827,3 +827,116 @@ apr_lib_validate_doc_sizes() {
         apr_lib_validate_doc_size "$path" "$role" "$warn" "$fatal"
     done
 }
+
+# =============================================================================
+# bd-1eq: secret scanning (warn-only; strict mode escalates via finalize_strict)
+# =============================================================================
+#
+# Complements bd-3ut (lib/redact.sh):
+#   - bd-3ut silently substitutes secrets with typed sentinels in the
+#     prompt before it leaves APR.
+#   - bd-1eq DETECTS likely secrets so the operator sees a clear warning
+#     (or a strict-mode error) before the run; the actual prompt is
+#     untouched.
+#
+# Pattern set matches bd-3ut for consistency. Each finding records:
+#   - source: <label>:<line_no>
+#   - hint:   "Remove the secret, move it to an env var, or enable
+#              redaction mode (APR_REDACT=1)."
+#   - details: {"label", "class": "OPENAI_KEY|...", "line": N,
+#               "redacted_snippet": "<context with secret replaced>"}
+#
+# Code-fence-aware (APR_QC_RESPECT_CODE_FENCES=1, default on). Strict
+# mode (APR_FAIL_ON_WARN=1) escalates to error via the existing
+# apr_lib_validate_finalize_strict promotion path.
+# -----------------------------------------------------------------------------
+
+# Pattern catalog: "class|extended-regex". Aligned with bd-3ut.
+_APR_VALIDATE_SECRET_PATTERNS=(
+    'PRIVATE_KEY_BLOCK|^-----BEGIN [A-Z][A-Z ]*PRIVATE KEY-----'
+    'OPENAI_KEY|sk-[A-Za-z0-9_-]{20,}'
+    'GITHUB_FINEGRAINED|github_pat_[A-Za-z0-9_]{20,}'
+    'GITHUB_TOKEN|gh[posur]_[A-Za-z0-9_-]{20,}'
+    'SLACK_TOKEN|xox[bpars]-[A-Za-z0-9-]{10,}'
+    'AKIA_KEY|(^|[^A-Z0-9])AKIA[0-9A-Z]{16}([^A-Z0-9]|$)'
+    'AUTH_BEARER_TOKEN|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]+'
+)
+
+# -----------------------------------------------------------------------------
+# Internal: emit a redacted snippet of <line> with the matched secret
+# replaced by <<class>>. Truncates to 200 bytes for log hygiene.
+# -----------------------------------------------------------------------------
+_apr_validate_secret_redact_line() {
+    local line="$1" class="$2" regex="$3"
+    local redacted
+    redacted=$(printf '%s' "$line" | sed -E "s/$regex/<<$class>>/g" 2>/dev/null) || redacted="<<$class>>"
+    if [[ ${#redacted} -gt 200 ]]; then
+        redacted="${redacted:0:200}"
+    fi
+    printf '%s' "$redacted"
+}
+
+# -----------------------------------------------------------------------------
+# apr_lib_validate_secret_scan <text> [<label>] [<source_prefix>]
+#
+# Scan <text> for high-confidence secret patterns. Records one warning
+# per match (class + line number + redacted snippet). Honors
+# APR_QC_RESPECT_CODE_FENCES (default 1; strict mode forces 0).
+#
+# <source_prefix> is used for the finding's `source` field (typically
+# "<file-path>"); the line number is appended as ":<n>" so robot
+# consumers get exact locations.
+# -----------------------------------------------------------------------------
+apr_lib_validate_secret_scan() {
+    local text="${1-}"
+    local label="${2:-prompt}"
+    local source_prefix="${3-}"
+
+    [[ -z "$text" ]] && return 0
+
+    local respect_fences="${APR_QC_RESPECT_CODE_FENCES:-1}"
+    if apr_lib_validate_strict_mode; then
+        respect_fences=0
+    fi
+
+    local sig class regex
+    for sig in "${_APR_VALIDATE_SECRET_PATTERNS[@]}"; do
+        class="${sig%%|*}"
+        regex="${sig#*|}"
+        if ! printf '%s' "$text" | grep -Eq "$regex"; then
+            continue
+        fi
+        local hits
+        hits=$(_apr_validate_qc_hits "$text" "$label" "$regex" "$respect_fences")
+        [[ -z "$hits" ]] && continue
+        local hit line_no hit_label
+        while IFS= read -r hit; do
+            [[ -z "$hit" ]] && continue
+            hit_label="${hit%:*}"
+            line_no="${hit##*:}"
+            [[ "$line_no" =~ ^[0-9]+$ ]] || continue
+            local line
+            line=$(printf '%s\n' "$text" | sed -n "${line_no}p")
+            local snippet
+            snippet=$(_apr_validate_secret_redact_line "$line" "$class" "$regex")
+            local details
+            details=$(printf '{"label":"%s","class":"%s","line":%s,"redacted_snippet":"%s"}' \
+                "$(_apr_validate_json_escape "$hit_label")" \
+                "$class" \
+                "$line_no" \
+                "$(_apr_validate_json_escape "$snippet")")
+            local src=""
+            if [[ -n "$source_prefix" ]]; then
+                src="${source_prefix}:${line_no}"
+            else
+                src="${hit_label}:${line_no}"
+            fi
+            apr_lib_validate_add_warning "secret_detected" \
+                "Likely $class secret at ${hit_label}:${line_no} (redacted snippet: $snippet)" \
+                "Remove the secret from the doc, move it to an env var, or enable redaction mode (APR_REDACT=1). Use APR_FAIL_ON_WARN=1 to block runs on detection." \
+                "$src" \
+                "$details"
+        done <<< "$hits"
+    done
+    return 0
+}
