@@ -24,7 +24,8 @@ teardown() {
 
 @test "Synthesis is not ready from preflight scope" {
     run python3 "$SCRIPT_PATH" --readiness "$READINESS" --stage synthesis --json
-    assert_success
+    assert_failure
+    assert_output --partial '"ok": false'
     assert_output --partial '"ready": false'
     assert_output --partial 'Scope is preflight-only'
 }
@@ -37,7 +38,8 @@ teardown() {
 
 @test "synthesis_prompt_submission is not ready and blocked" {
     run python3 "$SCRIPT_PATH" --readiness "$READINESS" --stage synthesis_prompt_submission --json
-    assert_success
+    assert_failure
+    assert_output --partial '"ok": false'
     assert_output --partial '"ready": false'
     assert_output --partial '"error_code": "stage_not_ready"'
     assert_output --partial 'normalized_provider_results'
@@ -59,7 +61,8 @@ teardown() {
 EOF
 
     run python3 "$SCRIPT_PATH" --readiness "$bad_readiness" --stage synthesis_prompt_submission --json
-    assert_success
+    assert_failure
+    assert_output --partial '"ok": false'
     assert_output --partial '"ready": false'
     assert_output --partial 'Circular synthesis condition detected'
 }

@@ -33,7 +33,7 @@ teardown() {
     echo '{"provider_slot": "deepseek_v4_pro_reasoning_search", "status": "success"}' > "$res1"
     
     run python3 "$SCRIPT_PATH" --policy "$POLICY" --results "$res1" --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'Required reviewer gemini_deep_think is missing'
 }
@@ -58,7 +58,7 @@ teardown() {
     echo '{"provider_slot": "claude_code_opus", "synthesis_eligible_after_waiver": true, "expires_at": "2020-01-01T00:00:00Z"}' > "$waiver"
     
     run python3 "$SCRIPT_PATH" --policy "$POLICY" --results "$res1" --waivers "$waiver" --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'Optional reviewers: 0 eligible'
 }
@@ -70,7 +70,7 @@ teardown() {
     echo '{"provider_slot": "claude_code_opus", "synthesis_eligible_after_waiver": true, "expires_at": "next week"}' > "$waiver"
 
     run python3 "$SCRIPT_PATH" --policy "$POLICY" --results "$res1" --waivers "$waiver" --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'Optional reviewers: 0 eligible'
 }
@@ -84,7 +84,7 @@ teardown() {
     # Wait, if we waive optional, it counts towards total if the slot is checked.
     # Let's just pass one required and see it fail total (wait, optional will fail first, so let's check).
     run python3 "$SCRIPT_PATH" --policy "$POLICY" --results "$res1" --json
-    assert_success
+    assert_failure
     assert_output --partial '"ok": false'
     assert_output --partial 'Optional reviewers: 0 eligible'
 }
