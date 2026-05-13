@@ -67,6 +67,10 @@ def find_forbidden_fields(value: Any, prefix: str = "$") -> list[str]:
     return hits
 
 
+def strict_true(value: object) -> bool:
+    return isinstance(value, bool) and value
+
+
 def validate_schema(validator_cls: Any, schema: dict[str, Any], value: Any, label: str) -> list[str]:
     try:
         validator_cls(schema).validate(value)
@@ -154,16 +158,16 @@ def decide(case: dict[str, Any]) -> tuple[str, str | None, list[str]]:
         (result.get("provider_slot") == slot, "result_slot_mismatch"),
         (result.get("evidence_id") == evidence.get("evidence_id"), "evidence_id_mismatch"),
         (result.get("provider_result_id") == evidence.get("provider_result_id"), "provider_result_id_mismatch"),
-        (evidence.get("mode_verified") is True, "mode_not_verified"),
-        (evidence.get("verified_before_prompt_submit") is True, "not_verified_before_prompt_submit"),
-        (evidence.get("reasoning_effort_verified") is True, "reasoning_effort_not_verified"),
+        (strict_true(evidence.get("mode_verified")), "mode_not_verified"),
+        (strict_true(evidence.get("verified_before_prompt_submit")), "not_verified_before_prompt_submit"),
+        (strict_true(evidence.get("reasoning_effort_verified")), "reasoning_effort_not_verified"),
         (evidence.get("capture_confidence") == "high", "capture_confidence_not_high"),
         (evidence.get("selector_manifest_version") == expected["selector_manifest_version"], "selector_manifest_stale"),
         (evidence.get("requested_reasoning_effort") == expected["reasoning_effort"], "evidence_effort_mismatch"),
         (result.get("reasoning_effort") == expected["reasoning_effort"], "result_effort_mismatch"),
-        (evidence.get("selected_effort_is_highest_visible") is True, "highest_visible_not_selected"),
+        (strict_true(evidence.get("selected_effort_is_highest_visible")), "highest_visible_not_selected"),
         (evidence.get("redaction_policy") == "redacted", "redaction_policy_not_redacted"),
-        (evidence.get("unsafe_artifacts_quarantined") is True, "unsafe_artifacts_not_quarantined"),
+        (strict_true(evidence.get("unsafe_artifacts_quarantined")), "unsafe_artifacts_not_quarantined"),
         (result.get("result_text_sha256") == evidence.get("output_text_sha256"), "output_hash_mismatch"),
         (
             result.get("access_path")
