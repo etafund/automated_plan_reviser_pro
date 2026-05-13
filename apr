@@ -734,6 +734,32 @@ can_prompt() {
     [[ -t 0 && -t 2 && "$QUIET_MODE" != "true" ]]
 }
 
+setup_has_prompt_source() {
+    if can_prompt; then
+        return 0
+    fi
+
+    # Non-interactive setup is only viable when stdin can provide scripted
+    # answers. Refuse known-empty sources before the wizard starts.
+    local stdin_target=""
+    stdin_target=$(readlink /proc/self/fd/0 2>/dev/null || true)
+    if [[ "$stdin_target" == "/dev/null" ]]; then
+        return 1
+    fi
+
+    if [[ -f /dev/stdin ]]; then
+        [[ -s /dev/stdin ]]
+        return $?
+    fi
+
+    if [[ -p /dev/stdin ]]; then
+        read -r -t 0
+        return $?
+    fi
+
+    return 1
+}
+
 # ISO8601 timestamp (UTC)
 iso_timestamp() {
     date -u +"%Y-%m-%dT%H:%M:%SZ"
@@ -4864,6 +4890,11 @@ update_convergence_metrics() {
 # -----------------------------------------------------------------------------
 
 run_setup() {
+    if ! setup_has_prompt_source; then
+        apr_fail "config_error" "apr setup requires interactive input" \
+            "Run in a terminal, or pipe all required setup answers via stdin."
+    fi
+
     print_banner
 
     if [[ "$GUM_AVAILABLE" == "true" ]]; then

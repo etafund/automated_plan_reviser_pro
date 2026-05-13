@@ -231,6 +231,15 @@ EOF
     [[ $status -eq 0 ]] || [[ $status -eq 4 ]] || [[ "$output" == *"interactive"* ]] || [[ "$output" == *"Setup"* ]]
 }
 
+@test "setup: stdin=/dev/null exits with actionable error (no infinite loop)" {
+    run bash -lc 'cd "$1" && APR_NO_GUM=1 NO_COLOR=1 timeout 5 "$2" setup </dev/null' _ "$TEST_PROJECT" "$APR_SCRIPT"
+
+    # timeout exits 124 when command hangs; this is the regression guard.
+    [[ "$status" -ne 124 ]]
+    [[ "$status" -eq 4 ]]
+    [[ "$output" == *"apr setup requires interactive input"* ]]
+}
+
 @test "setup ux: guided flow has step headers, validation feedback, and success CTA" {
     run_setup_capture \
         $'uxflow\n\nREADME.md\nSPECIFICATION.md\nn\n1\n' \
