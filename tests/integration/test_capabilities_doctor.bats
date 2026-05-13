@@ -107,31 +107,28 @@ teardown() {
     assert_v18_envelope "$ARTIFACT_DIR/stdout.log"
 }
 
-@test "capabilities: current behavior — non --json/--help flags are eaten by apr's main parser (pinned)" {
-    # The cmd_capabilities body forwards "$@" to the underlying script,
-    # but apr's main flag-parser intercepts every recognized flag
-    # *before* dispatch. Unknown global flags (like --bundle-root) are
-    # rejected as usage_error instead of passing through to the script.
-    # That's a wrapper-vs-script contract gap — tracked separately.
-    run_with_artifacts "$APR_SCRIPT" capabilities --bundle-root "$BUNDLE_DIR"
-    [[ "$status" -eq 2 ]]
-    grep -Fq "APR_ERROR_CODE=usage_error" "$ARTIFACT_DIR/stderr.log"
-}
-
-@test "capabilities: forwards --bundle-root to the underlying script (strict)" {
-    # When the wrapper learns to forward arbitrary script flags, this
-    # test pin verifies the deterministic --now-epoch / --bundle-root
-    # pair actually flows through to provider-capability-check.sh.
-    # Until then, the wrapper rejects --bundle-root with usage_error
-    # (pinned above).
-    skip "apr capabilities does not forward arbitrary underlying-script flags — see follow-up bug bead automated_plan_reviser_pro-z59j"
-
+@test "capabilities: forwards --bundle-root to the underlying script" {
     run_with_artifacts "$APR_SCRIPT" capabilities \
         --bundle-root "$BUNDLE_DIR" \
         --now-epoch 1700000000
     [[ "$status" -eq 0 ]]
     assert_v18_envelope "$ARTIFACT_DIR/stdout.log"
     jq -e '.data.checked_at_epoch == 1700000000' "$ARTIFACT_DIR/stdout.log" >/dev/null
+}
+
+@test "capabilities: forwards --bundle-root to the underlying script (strict)" {
+    run_with_artifacts "$APR_SCRIPT" capabilities \
+        --bundle-root "$BUNDLE_DIR" \
+        --now-epoch 1700000000
+    [[ "$status" -eq 0 ]]
+    assert_v18_envelope "$ARTIFACT_DIR/stdout.log"
+    jq -e '.data.checked_at_epoch == 1700000000' "$ARTIFACT_DIR/stdout.log" >/dev/null
+}
+
+@test "capabilities: --help shows the underlying script usage" {
+    run_with_artifacts "$APR_SCRIPT" capabilities --help
+    [[ "$status" -eq 0 ]]
+    grep -Fq "Usage: provider-capability-check.sh" "$ARTIFACT_DIR/stderr.log"
 }
 
 @test "capabilities: apr --help advertises both v18 readiness commands" {

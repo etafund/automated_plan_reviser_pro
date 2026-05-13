@@ -2441,15 +2441,30 @@ cmd_prompts() {
     esac
 }
 
+apr_args_contain() {
+    local needle="$1"
+    shift
+
+    local arg
+    for arg in "$@"; do
+        [[ "$arg" == "$needle" ]] && return 0
+    done
+    return 1
+}
+
 cmd_capabilities() {
     local args=("$@")
-    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+    if [[ "$STATS_JSON" == "true" ]] && ! apr_args_contain "--json" "${args[@]}"; then
+        args+=("--json")
+    fi
     "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/provider-capability-check.sh" "${args[@]}"
 }
 
 cmd_doctor() {
     local args=("$@")
-    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+    if [[ "$STATS_JSON" == "true" ]] && ! apr_args_contain "--json" "${args[@]}"; then
+        args+=("--json")
+    fi
     
     if [[ "$STATS_JSON" == "true" ]]; then
         local capabilities_json premortem_json combined_json
@@ -7958,6 +7973,24 @@ main() {
             WORKFLOW="default"
         fi
         cmd_robot "$@"
+        exit $?
+    fi
+
+    # These v18 wrapper commands delegate to scripts with their own option
+    # surfaces. Dispatch before APR's general parser rejects script-local flags.
+    if [[ "$command" == "capabilities" || "$command" == "doctor" ]]; then
+        STATS_JSON=false
+        if apr_args_contain "--json" "$@"; then
+            STATS_JSON=true
+        fi
+        case "$command" in
+            capabilities)
+                cmd_capabilities "$@"
+                ;;
+            doctor)
+                cmd_doctor "$@"
+                ;;
+        esac
         exit $?
     fi
 
