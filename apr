@@ -1535,6 +1535,27 @@ run_oracle_with_retry() {
     local stderr_file
     stderr_file=$(mktemp 2>/dev/null || printf '/tmp/apr_oracle_stderr.%s' "$$")
 
+    if ! is_non_negative_int "$busy_max_attempts" || (( 10#$busy_max_attempts < 1 )); then
+        busy_max_attempts=10
+    else
+        busy_max_attempts=$((10#$busy_max_attempts))
+    fi
+    if ! is_non_negative_int "$busy_backoff"; then
+        busy_backoff=30
+    else
+        busy_backoff=$((10#$busy_backoff))
+    fi
+    if ! is_non_negative_int "$busy_max_sleep"; then
+        busy_max_sleep=600
+    else
+        busy_max_sleep=$((10#$busy_max_sleep))
+    fi
+    if ! is_non_negative_int "$busy_max_wait"; then
+        busy_max_wait=1800
+    else
+        busy_max_wait=$((10#$busy_max_wait))
+    fi
+
     verbose "run_oracle_with_retry: max_attempts=$MAX_RETRY_ATTEMPTS initial_backoff=$INITIAL_BACKOFF busy_max_attempts=$busy_max_attempts busy_initial_backoff=$busy_backoff busy_max_sleep=$busy_max_sleep busy_max_wait=$busy_max_wait"
 
     while [[ $attempt -le $MAX_RETRY_ATTEMPTS ]]; do

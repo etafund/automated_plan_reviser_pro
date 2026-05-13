@@ -59,6 +59,7 @@ fi
 exit "$exit_code"
 EOF
     chmod +x "$script"
+    # shellcheck disable=SC2034  # Consumed by run_oracle_with_retry from the sourced apr script.
     ORACLE_CMD=("$script")
 }
 
@@ -95,6 +96,33 @@ EOF
     [ "$rc" -eq 12 ]
 }
 
+@test "run_oracle_with_retry: invalid APR_BUSY env values fall back before arithmetic and sleep" {
+    APR_BUSY_MAX_RETRIES=not-a-number
+    APR_BUSY_INITIAL_BACKOFF=not-a-number
+    APR_BUSY_MAX_SLEEP=not-a-number
+    APR_BUSY_MAX_WAIT=not-a-number
+    sleep() {
+        [[ "${1:-}" =~ ^[0-9]+$ ]]
+    }
+
+    make_fake_oracle "ERROR: busy" 1
+    local rc=0
+    run_oracle_with_retry --slug test >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 12 ]
+}
+
+@test "run_oracle_with_retry: leading-zero APR_BUSY env values are normalized as decimal" {
+    APR_BUSY_MAX_RETRIES=02
+    APR_BUSY_INITIAL_BACKOFF=01
+    APR_BUSY_MAX_SLEEP=02
+    APR_BUSY_MAX_WAIT=00
+
+    make_fake_oracle "ERROR: busy" 1
+    local rc=0
+    run_oracle_with_retry --slug test >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 12 ]
+}
+
 @test "run_oracle_with_retry: non-busy error takes generic-retry path (not busy budget)" {
     APR_BUSY_MAX_RETRIES=99    # busy budget large
     APR_MAX_RETRIES=2          # generic budget small
@@ -123,7 +151,9 @@ EOF
     if ! command -v python3 >/dev/null 2>&1; then
         skip "python3 not available"
     fi
+    # shellcheck disable=SC2034  # Consumed by robot_emit_busy from the sourced apr script.
     ROBOT_MODE=true
+    # shellcheck disable=SC2034  # Consumed by robot_json from the sourced apr script.
     ROBOT_COMPACT=true
     APR_BUSY_MAX_RETRIES=2
     make_fake_oracle "ERROR: busy" 1
