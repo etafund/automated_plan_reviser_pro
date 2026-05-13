@@ -2343,6 +2343,24 @@ cmd_providers() {
     esac
 }
 
+cmd_plan() {
+    local subcommand="${1:-}"
+    [[ -n "$subcommand" ]] && shift
+    
+    local args=("$@")
+    [[ "$STATS_JSON" == "true" ]] && args+=("--json")
+    [[ "${DRY_RUN:-}" == "true" ]] && args+=("--dry-run")
+
+    case "$subcommand" in
+        export-beads)
+            python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/export-beads.py" "${args[@]}"
+            ;;
+        *)
+            apr_fail "usage_error" "Subcommand required: export-beads" "Usage: apr plan export-beads [options]"
+            ;;
+    esac
+}
+
 robot_lint_gate() {
     local round_num="$1"
     local workflow="$2"
@@ -3723,6 +3741,8 @@ run_round() {
     local dry_run="${DRY_RUN:-false}"
     local render="${RENDER:-false}"
     local copy="${COPY:-false}"
+    local show_manifest="${SHOW_MANIFEST:-false}"
+    local manifest_only="${MANIFEST_ONLY:-false}"
     local wait_mode="${WAIT_MODE:-false}"
     local manual_login="${MANUAL_LOGIN:-false}"
     local keep_browser="${KEEP_BROWSER:-false}"
@@ -3981,6 +4001,42 @@ run_round() {
         echo "    --heartbeat 30 \\" >&2
         echo "    -p \"<prompt>\"" >&2
         exit $EXIT_SUCCESS
+    fi
+
+    # Manifest preview modes (bd-2nx).
+    #
+    # --manifest-only short-circuits: print just the manifest preamble on
+    # stdout and exit. No template, no oracle, no lock needed (lint
+    # already ran above to validate the workflow yaml).
+    if [[ "$manifest_only" == "true" ]]; then
+        local manifest_text=""
+        if command -v build_prompt_manifest >/dev/null 2>&1; then
+            manifest_text=$(build_prompt_manifest "$include_impl" "$config_path")
+        fi
+        if [[ -z "$manifest_text" ]]; then
+            apr_fail "config_error" "Manifest empty for workflow '$workflow'" \
+                "Check workflow yaml document paths; ensure lib/manifest.sh is on the APR_LIB_DIR path."
+        fi
+        # Manifest is structured (deterministic) output -> stdout. Human
+        # status lines go to stderr.
+        print_info "Manifest preview for workflow '$workflow' round $round_num"
+        printf '%s' "$manifest_text"
+        exit $EXIT_SUCCESS
+    fi
+
+    # --show-manifest with --render or --dry-run: print the manifest on
+    # stdout BEFORE entering the existing render/dry-run paths, so
+    # operators can verify it without searching through the rendered
+    # bundle.
+    if [[ "$show_manifest" == "true" ]] && { [[ "$dry_run" == "true" ]] || [[ "$render" == "true" ]]; }; then
+        local manifest_text=""
+        if command -v build_prompt_manifest >/dev/null 2>&1; then
+            manifest_text=$(build_prompt_manifest "$include_impl" "$config_path")
+        fi
+        if [[ -n "$manifest_text" ]]; then
+            print_info "Manifest for workflow '$workflow' round $round_num"
+            printf '%s\n' "$manifest_text"
+        fi
     fi
 
     # Render mode
@@ -6430,6 +6486,81 @@ robot_validate() {
     fi
 }
 
+# Robot: Render - Preview the exact prompt bundle for a round without
+# invoking oracle. Returns JSON with the manifest text, the full
+# assembled prompt text, and the prompt's sha256. Honors --manifest-only
+# to skip the heavier prompt body (e.g. when an operator just wants to
+# verify file selection + hashes). (bd-2nx)
+robot_render() {
+    local round_num="${1:-}"
+    local workflow="${WORKFLOW:-default}"
+    local include_impl="${INCLUDE_IMPL:-false}"
+    local manifest_only="${MANIFEST_ONLY:-false}"
+
+    if [[ -z "$round_num" ]]; then
+        robot_fail "usage_error" '{"argument":"round"}' "Round number required"
+        return $?
+    fi
+    if ! is_non_negative_int "$round_num"; then
+        robot_fail "usage_error" "$(jq -nc --arg round "$round_num" '{argument: "round", value: $round}')" "Round must be a non-negative integer"
+        return $?
+    fi
+
+    local config_path="$CONFIG_DIR/workflows/$workflow.yaml"
+    if [[ ! -f "$config_path" ]]; then
+        robot_fail "usage_error" "$(jq -nc --arg wf "$workflow" '{argument: "workflow", value: $wf}')" "Workflow not found"
+        return $?
+    fi
+
+    # impl_every_n auto-inclusion mirrors cmd_run / robot_run so the
+    # preview matches what a real run would assemble.
+    local impl_every_n
+    impl_every_n=$(yaml_unquote "$(get_config_value "impl_every_n" "$config_path" 2>/dev/null || echo "")")
+    if [[ -n "$impl_every_n" && "$impl_every_n" =~ ^[0-9]+$ && "$impl_every_n" -gt 0 ]]; then
+        if (( round_num % impl_every_n == 0 )); then
+            include_impl=true
+        fi
+    fi
+
+    local manifest_text=""
+    if command -v build_prompt_manifest >/dev/null 2>&1; then
+        manifest_text=$(build_prompt_manifest "$include_impl" "$config_path")
+    fi
+    if [[ -z "$manifest_text" ]]; then
+        robot_fail "config_error" "$(jq -nc --arg wf "$workflow" '{workflow: $wf}')" \
+            "Manifest empty; check workflow yaml and APR_LIB_DIR"
+        return $?
+    fi
+
+    local prompt_text=""
+    local prompt_hash=""
+    if [[ "$manifest_only" != "true" ]]; then
+        prompt_text=$(build_revision_prompt "$include_impl" "$config_path")
+        if command -v apr_lib_manifest_hash_text >/dev/null 2>&1; then
+            prompt_hash=$(apr_lib_manifest_hash_text "$prompt_text")
+        fi
+    else
+        # Manifest-only: hash just the manifest text so consumers still
+        # get a stable provenance anchor.
+        if command -v apr_lib_manifest_hash_text >/dev/null 2>&1; then
+            prompt_hash=$(apr_lib_manifest_hash_text "$manifest_text")
+        fi
+    fi
+
+    local data
+    data=$(jq -nc \
+        --arg workflow "$workflow" \
+        --argjson round "$round_num" \
+        --argjson include_impl "$( [[ "$include_impl" == "true" ]] && echo true || echo false )" \
+        --argjson manifest_only "$( [[ "$manifest_only" == "true" ]] && echo true || echo false )" \
+        --arg manifest_text "$manifest_text" \
+        --arg prompt_text "$prompt_text" \
+        --arg prompt_hash "$prompt_hash" \
+        '{workflow: $workflow, round: $round, include_impl: $include_impl, manifest_only: $manifest_only, manifest_text: $manifest_text, prompt_text: $prompt_text, prompt_hash: $prompt_hash}')
+
+    robot_json true "ok" "$data"
+}
+
 # Robot: Lint - First-class validation entry point without Oracle dependency
 robot_lint() {
     local round_arg="${1:-}"
@@ -7023,6 +7154,7 @@ robot_help() {
             lint: "Validate workflow, documents, and prompt templates without invoking Oracle",
             validate: "Pre-run validation (apr robot validate <round>)",
             run: "Execute revision round (apr robot run <round>)",
+            render: "Preview manifest + prompt for a round without invoking Oracle (apr robot render <round>; --manifest-only for manifest alone)",
             show: "View round content (apr robot show <round>)",
             diff: "Compare rounds (apr robot diff <N> [M])",
             integrate: "Get Claude integration prompt (apr robot integrate <round>)",
@@ -7201,6 +7333,9 @@ cmd_robot() {
         run)
             robot_run "${robot_args[0]:-}"
             ;;
+        render)
+            robot_render "${robot_args[0]:-}"
+            ;;
         show)
             robot_show "${robot_args[0]:-}"
             ;;
@@ -7256,6 +7391,7 @@ show_help() {
         echo "    $(gum style --foreground 82 'status')             Check Oracle session status" >&2
         echo "    $(gum style --foreground 82 'attach <session>')   Attach to running/completed session" >&2
         echo "    $(gum style --foreground 82 'providers <cmd>')    v18 plan-routes and readiness gates" >&2
+        echo "    $(gum style --foreground 82 'plan <cmd>')         v18 plan export and management" >&2
         echo "" >&2
         gum style --foreground 39 "  Management" >&2
         echo "    $(gum style --foreground 82 'list')               List configured workflows" >&2
@@ -7281,6 +7417,8 @@ show_help() {
         gum style --faint "  --round NUM          Round context for lint warnings" >&2
         gum style --faint "  -d, --dry-run        Preview without sending to GPT Pro" >&2
         gum style --faint "  -r, --render         Render bundle for manual paste" >&2
+        gum style --faint "  --show-manifest      Print manifest alongside render/dry-run output" >&2
+        gum style --faint "  --manifest-only      Print only the manifest (no template/oracle); exit 0" >&2
         gum style --faint "  -c, --copy           Copy rendered bundle to clipboard" >&2
         gum style --faint "  -o, --output FILE    Output to file (integrate/export)" >&2
         gum style --faint "  --wait               Wait for completion (blocking)" >&2
@@ -7382,6 +7520,7 @@ show_help() {
         echo -e "    ${GREEN}status${NC}             Check Oracle session status" >&2
         echo -e "    ${GREEN}attach <session>${NC}   Attach to running/completed session" >&2
         echo -e "    ${GREEN}providers <cmd>${NC}    v18 plan-routes and readiness gates" >&2
+        echo -e "    ${GREEN}plan <cmd>${NC}         v18 plan export and management" >&2
         echo "" >&2
         echo -e "  ${CYAN}Management${NC}" >&2
         echo -e "    ${GREEN}list${NC}               List configured workflows" >&2
@@ -7406,6 +7545,8 @@ show_help() {
         echo "  --round NUM          Round context for lint warnings" >&2
         echo "  -d, --dry-run        Preview without sending to GPT Pro" >&2
         echo "  -r, --render         Render bundle for manual paste" >&2
+        echo "  --show-manifest      Print manifest alongside render/dry-run output" >&2
+        echo "  --manifest-only      Print only the manifest (no template/oracle); exit 0" >&2
         echo "  -c, --copy           Copy rendered bundle to clipboard" >&2
         echo "  -o, --output FILE    Output to file (integrate/export)" >&2
         echo "  --wait               Wait for completion (blocking)" >&2
@@ -7618,6 +7759,14 @@ main() {
                 RENDER=true
                 shift
                 ;;
+            --show-manifest)
+                SHOW_MANIFEST=true
+                shift
+                ;;
+            --manifest-only)
+                MANIFEST_ONLY=true
+                shift
+                ;;
             -c|--copy)
                 COPY=true
                 shift
@@ -7675,7 +7824,7 @@ main() {
                 STATS_DETAILED=true
                 shift
                 ;;
-            --profile|--readiness|--stage|--input|--run-dir)
+            --profile|--readiness|--stage|--input|--run-dir|--plan)
                 positional_args+=("$1" "${2:-}")
                 shift 2
                 ;;
@@ -7823,6 +7972,9 @@ main() {
             ;;
         providers)
             cmd_providers "${positional_args[@]}"
+            ;;
+        plan)
+            cmd_plan "${positional_args[@]}"
             ;;
         prompts)
             cmd_prompts "${positional_args[@]}"
