@@ -135,6 +135,7 @@ def main():
     out = env(ok=not errors, data=data, warnings=warnings)
     if args.json:
         print(json.dumps(out, indent=2, sort_keys=True))
+        sys.exit(0 if out.get('ok') else 1)
     else:
         if errors:
             for e in errors: print(f"ERROR: {e}", file=sys.stderr)
