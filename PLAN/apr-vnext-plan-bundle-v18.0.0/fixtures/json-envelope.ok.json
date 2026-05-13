@@ -1,0 +1,31 @@
+{
+  "blocked_reason": null,
+  "commands": {
+    "docs": "ROBOTS.md",
+    "examples": [
+      "apr capabilities --json",
+      "apr doctor --json"
+    ],
+    "fix": null,
+    "next": "apr doctor --json"
+  },
+  "data": {
+    "configured": true,
+    "message": "ok",
+    "workflow_count": 1
+  },
+  "errors": [],
+  "fix_command": null,
+  "meta": {
+    "bundle_version": "v18.0.0",
+    "command": "apr doctor --json",
+    "stderr_policy": "human_progress_only",
+    "stdout_contract": "contracts/json-envelope.schema.json",
+    "tool": "apr"
+  },
+  "next_command": null,
+  "ok": true,
+  "retry_safe": null,
+  "schema_version": "json_envelope.v1",
+  "warnings": []
+}

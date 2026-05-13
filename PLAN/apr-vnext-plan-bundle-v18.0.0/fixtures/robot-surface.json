@@ -1,0 +1,54 @@
+{
+  "bundle_version": "v18.0.0",
+  "commands": [
+    {
+      "calls_live_provider": false,
+      "command": "apr capabilities --json",
+      "data_contract": "capabilities.v1",
+      "mock_command": "python3 scripts/apr-mock.py capabilities --json",
+      "mutates_state": false,
+      "name": "capabilities",
+      "paid_calls": false,
+      "stdout_schema": "contracts/json-envelope.schema.json",
+      "supports_json": true
+    },
+    {
+      "calls_live_provider": false,
+      "command": "apr providers plan-routes --dry-run --json",
+      "data_contract": "provider_route.v1",
+      "mock_command": "python3 scripts/apr-mock.py plan-routes --json",
+      "mutates_state": false,
+      "name": "robot-plan",
+      "paid_calls": false,
+      "stdout_schema": "contracts/json-envelope.schema.json",
+      "supports_json": true
+    }
+  ],
+  "compatibility": {
+    "legacy_readme_envelope_fields": [
+      "code",
+      "hint"
+    ],
+    "migration": "v18 robot commands may preserve legacy code/hint fields as extensions, but must emit the v18 envelope core."
+  },
+  "development_and_runtime": true,
+  "error_fields_required": [
+    "blocked_reason",
+    "next_command",
+    "fix_command",
+    "retry_safe"
+  ],
+  "json_envelope_required": true,
+  "stderr_contract": {
+    "human_progress_allowed": true,
+    "machine_state_allowed": false,
+    "secrets_allowed": false
+  },
+  "stdout_contract": {
+    "format": "json",
+    "human_text_allowed": false,
+    "schema": "contracts/json-envelope.schema.json"
+  },
+  "schema_version": "robot_surface.v1",
+  "tool": "apr"
+}

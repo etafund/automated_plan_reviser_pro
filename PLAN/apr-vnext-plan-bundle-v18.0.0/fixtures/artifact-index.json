@@ -1,0 +1,57 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "evidence-demo-chatgpt_pro_first_plan",
+      "kind": "browser_evidence",
+      "path": "fixtures/chatgpt-pro-evidence.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "redaction_level": "redacted",
+      "sha256": "sha256:bafa56a83021e180b7ad21b57c9dcf83b10ff536549eaf9b41fe901833e5effb",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+    },
+    {
+      "artifact_id": "provider-result-demo-chatgpt_pro_first_plan",
+      "kind": "provider_result",
+      "path": "fixtures/provider-result.chatgpt.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "redaction_level": "none",
+      "sha256": "sha256:5f1331f1971adcc73a90602a68e93551f4163e4165538cdce30ee11e5ecc73ae",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+    },
+    {
+      "approval_ids": [
+        "APR-DECISION-001"
+      ],
+      "artifact_id": "plan-demo",
+      "kind": "plan_artifact",
+      "path": "fixtures/plan-artifact.json",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "redaction_level": "none",
+      "sha256": "sha256:afdeeb5b6f769584421fd6cfcad3bd08794974834c8432a3fda5d7d067cf5ca9",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+    },
+    {
+      "approval_ids": [
+        "APR-DECISION-001"
+      ],
+      "artifact_id": "approval-ledger-demo",
+      "kind": "approval_ledger",
+      "path": "fixtures/approval-ledger.json",
+      "provider_result_ids": [],
+      "redaction_level": "none",
+      "sha256": "sha256:63067653d34239b2278ca26755c3b531eac154025e627a14e50141ef77111497",
+      "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50"
+    }
+  ],
+  "bundle_version": "v18.0.0",
+  "run_id": "run-demo",
+  "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+  "schema_version": "artifact_index.v1"
+}

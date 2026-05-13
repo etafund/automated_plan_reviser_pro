@@ -1,0 +1,96 @@
+{
+  "bundle_version": "v18.0.0",
+  "contradiction_resolutions": [
+    {
+      "approval_ids": [
+        "APR-DECISION-001"
+      ],
+      "contradiction_id": "CONTRADICT-SYNTHESIS-GATE",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "resolution_summary": "Use separate prompt-submission and final-handoff gates."
+    }
+  ],
+  "final_plan_items": [
+    {
+      "acceptance_criteria_ids": [
+        "AC-PROVIDER-ROUTES-TYPED"
+      ],
+      "evidence_refs": [
+        "evidence-demo-chatgpt_pro_first_plan",
+        "evidence-demo-gemini_deep_think"
+      ],
+      "human_decision_ids": [
+        "APR-DECISION-001"
+      ],
+      "plan_item_id": "PLAN-ROUTE-GATING",
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan",
+        "provider-result-demo-gemini_deep_think"
+      ],
+      "rollback_point_ids": [
+        "RB-ROUTE-GATING"
+      ],
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
+      "test_ids": [
+        "TEST-ROUTE-READINESS-CONTRACT"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-CHATGPT-PRO-FIRST-PLAN",
+      "acceptance_criteria_ids": [
+        "AC-PROVIDER-ROUTES-TYPED"
+      ],
+      "evidence_refs": [
+        "evidence-demo-chatgpt_pro_first_plan"
+      ],
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "plan_sections": [
+        "objective"
+      ],
+      "provider_result_ids": [
+        "provider-result-demo-chatgpt_pro_first_plan"
+      ],
+      "source_refs": [
+        "SRC-LOCAL-BRIEF"
+      ],
+      "statement": "ChatGPT Pro first-plan output must remain an Oracle-browser route with evidence.",
+      "tests": [
+        "test_chatgpt_pro_first_plan_required"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "RISK-UI-DRIFT",
+      "mitigation": "browser evidence and selector fixtures"
+    }
+  ],
+  "schema_version": "traceability_matrix.v1",
+  "source_baseline_sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+  "source_refs": [
+    {
+      "path": "fixtures/source-baseline.json",
+      "sha256": "sha256:0f130c5821589731c69ef6713893c36f9b319e014fda7151724e77b6d4b9cf50",
+      "source_id": "SRC-LOCAL-BRIEF"
+    }
+  ],
+  "tests": [
+    {
+      "command": "python3 scripts/contract-fixture-smoke.py --json",
+      "id": "test_chatgpt_pro_first_plan_required",
+      "plan_item_ids": [
+        "PLAN-ROUTE-GATING"
+      ],
+      "type": "contract"
+    }
+  ]
+}
