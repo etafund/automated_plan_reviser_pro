@@ -61,6 +61,22 @@ apr_unicode_enabled() {
     return 0
 }
 
+apr_bool_word() {
+    [[ $# -gt 0 ]] || {
+        printf 'false\n'
+        return 0
+    }
+    if "$@"; then
+        printf 'true\n'
+    else
+        printf 'false\n'
+    fi
+}
+
+apr_stderr_is_tty() {
+    [[ -t 2 ]]
+}
+
 apr_layout_mode() {
     local override="${APR_LAYOUT:-auto}"
     local min_cols="${APR_DESKTOP_MIN_COLS:-$APR_DEFAULT_DESKTOP_MIN_COLS}"
@@ -97,6 +113,38 @@ apr_layout_mode() {
     else
         printf 'compact\n'
     fi
+}
+
+apr_gum_allowed() {
+    [[ -z "${APR_NO_GUM:-}" ]] || return 1
+    [[ -z "${CI:-}" ]] || return 1
+    apr_color_enabled || return 1
+    command -v gum &>/dev/null || return 1
+    return 0
+}
+
+apr_terminal_capabilities() {
+    local layout layout_status
+    local width height
+    local color unicode stderr_tty gum
+
+    layout_status=0
+    layout=$(apr_layout_mode) || layout_status=$?
+    width=$(apr_term_width)
+    height=$(apr_term_height)
+    stderr_tty=$(apr_bool_word apr_stderr_is_tty)
+    color=$(apr_bool_word apr_color_enabled)
+    unicode=$(apr_bool_word apr_unicode_enabled)
+    gum=$(apr_bool_word apr_gum_allowed)
+
+    printf 'layout=%s\n' "$layout"
+    printf 'layout_status=%s\n' "$layout_status"
+    printf 'width=%s\n' "$width"
+    printf 'height=%s\n' "$height"
+    printf 'stderr_tty=%s\n' "$stderr_tty"
+    printf 'color=%s\n' "$color"
+    printf 'unicode=%s\n' "$unicode"
+    printf 'gum=%s\n' "$gum"
 }
 
 apr_ui_symbol() {

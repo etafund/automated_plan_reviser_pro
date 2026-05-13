@@ -342,11 +342,10 @@ assert_human_failure() {
 @test "contract: human apr run with placeholder leak surfaces an actionable diagnosis on stderr" {
     install_workflow_placeholder_leak
 
-    # Human path: cmd_run reaches prompt_quality_check and prints the
-    # PROMPT_QC_DETAILS diagnostic to stderr before returning nonzero. The
-    # full contract assertion (tag + exit 4) lives in the strict test
-    # immediately below — this one just pins the high-signal user-facing
-    # bits so the human diagnostic itself never silently disappears.
+    # Human path: the run lint gate catches the placeholder before any
+    # expensive Oracle step. The full contract assertion (tag + exit 4)
+    # lives in the strict test immediately below; this one pins the
+    # high-signal diagnostic text.
     run_with_artifacts "$APR_SCRIPT" run 1 --dry-run
 
     [[ "$status" -ne 0 ]] || {
@@ -355,28 +354,12 @@ assert_human_failure() {
         return 1
     }
 
+    grep -Fq "ERROR [prompt_qc_failed]" "$ARTIFACT_DIR/stderr.log"
     grep -Fq "unexpanded placeholders" "$ARTIFACT_DIR/stderr.log"
-    grep -Fq "Why this fails:"        "$ARTIFACT_DIR/stderr.log"
     grep -Fq "APR_ALLOW_CURLY_PLACEHOLDERS=1" "$ARTIFACT_DIR/stderr.log"
 }
 
 @test "contract: human apr run with placeholder leak → APR_ERROR_CODE=validation_failed + exit 4 (strict)" {
-    # This is the strict contract test. It currently fails because the
-    # human-mode `cmd_run` placeholder branch in `apr` prints the
-    # PROMPT_QC_DETAILS diagnostic but does not route through `apr_fail`,
-    # so neither the `APR_ERROR_CODE=` tag nor the `validation_failed`
-    # exit class (4) is produced — instead the script falls through to a
-    # generic exit-1.
-    #
-    # Keeping this test as a `skip` with the exact remediation visible
-    # makes the gap unmissable: when the apr-side change lands, delete
-    # the skip and this test starts enforcing the contract.
-    #
-    # Tracked as follow-up bead: automated_plan_reviser_pro-19bh
-    # ("apr cmd_run: route human-mode placeholder QC failure through
-    # apr_fail(validation_failed) so the error contract holds")
-    skip "human-mode placeholder leak does not yet route through apr_fail — see bead automated_plan_reviser_pro-19bh"
-
     install_workflow_placeholder_leak
     run_with_artifacts "$APR_SCRIPT" run 1 --dry-run
     assert_human_failure "validation_failed" 4

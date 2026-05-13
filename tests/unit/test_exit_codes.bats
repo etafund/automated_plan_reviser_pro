@@ -333,6 +333,27 @@ load '../helpers/test_helper.bash'
     assert_failure
 }
 
+@test "apr_error_code_meaning: documents known codes" {
+    load_apr_functions
+
+    run apr_error_code_meaning busy
+    assert_success
+    assert_output "Single-flight lock or busy state blocks this operation"
+
+    run apr_error_code_meaning made_up_error
+    assert_success
+    assert_output "Unknown APR error code"
+}
+
+@test "apr_error_code_table: emits code, exit, meaning rows" {
+    load_apr_functions
+
+    run apr_error_code_table
+    assert_success
+    [[ "$output" == *$'usage_error\t2\tBad arguments or invalid option values'* ]]
+    [[ "$output" == *$'busy\t12\tSingle-flight lock or busy state blocks this operation'* ]]
+}
+
 # =============================================================================
 # Error Message Format
 # =============================================================================

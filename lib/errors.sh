@@ -10,6 +10,31 @@ apr_emit_error_code_tag() {
     printf 'APR_ERROR_CODE=%s\n' "$code" >&2
 }
 
+apr_error_human_message() {
+    local level="$1"
+    local message="$2"
+
+    case "$level" in
+        error)
+            if declare -F print_error >/dev/null; then
+                print_error "$message"
+            else
+                printf '[apr] error: %s\n' "$message" >&2
+            fi
+            ;;
+        info)
+            if declare -F print_info >/dev/null; then
+                print_info "$message"
+            else
+                printf '[apr] info: %s\n' "$message" >&2
+            fi
+            ;;
+        *)
+            printf '[apr] %s\n' "$message" >&2
+            ;;
+    esac
+}
+
 apr_error_codes() {
     printf '%s\n' \
         ok \
@@ -38,6 +63,25 @@ apr_is_error_code() {
     esac
 }
 
+apr_error_code_meaning() {
+    local code="$1"
+    case "$code" in
+        ok) printf '%s\n' "Success" ;;
+        usage_error) printf '%s\n' "Bad arguments or invalid option values" ;;
+        not_configured) printf '%s\n' "APR project is not initialized" ;;
+        config_error) printf '%s\n' "Workflow, config, or filesystem configuration problem" ;;
+        validation_failed) printf '%s\n' "Precondition failed before running" ;;
+        dependency_missing) printf '%s\n' "Required local dependency is unavailable" ;;
+        busy) printf '%s\n' "Single-flight lock or busy state blocks this operation" ;;
+        network_error) printf '%s\n' "Remote or network operation failed" ;;
+        update_error) printf '%s\n' "Self-update failed" ;;
+        attachment_mismatch) printf '%s\n' "Attachment or file manifest mismatch" ;;
+        not_implemented) printf '%s\n' "Requested feature is not supported in this install" ;;
+        internal_error) printf '%s\n' "Unexpected APR bug or unknown state" ;;
+        *) printf '%s\n' "Unknown APR error code" ;;
+    esac
+}
+
 apr_exit_code_for_code() {
     local code="$1"
     case "$code" in
@@ -53,6 +97,16 @@ apr_exit_code_for_code() {
     esac
 }
 
+apr_error_code_table() {
+    local code
+    while IFS= read -r code; do
+        printf '%s\t%s\t%s\n' \
+            "$code" \
+            "$(apr_exit_code_for_code "$code")" \
+            "$(apr_error_code_meaning "$code")"
+    done < <(apr_error_codes)
+}
+
 apr_fail() {
     local code="${1:-internal_error}"
     local message="${2:-Unexpected APR failure}"
@@ -63,8 +117,8 @@ apr_fail() {
         code="internal_error"
     fi
 
-    print_error "$message"
-    [[ -n "$hint" ]] && print_info "$hint"
+    apr_error_human_message error "$message"
+    [[ -n "$hint" ]] && apr_error_human_message info "$hint"
     apr_emit_error_code_tag "$code"
     exit_code="$(apr_exit_code_for_code "$code")"
 

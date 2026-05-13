@@ -1005,6 +1005,16 @@ Exit-code mapping is stable:
 | `update_error` | `11` |
 | `busy` | `12` |
 
+Shared helper functions keep this contract in one place for future commands:
+
+| Helper | Purpose |
+|--------|---------|
+| `apr_error_codes` | Emits the canonical code list, one code per line |
+| `apr_exit_code_for_code <code>` | Returns the stable process exit for a code |
+| `apr_error_code_meaning <code>` | Returns the short human meaning for docs/help text |
+| `apr_error_code_table` | Emits tab-separated `code`, `exit`, `meaning` rows |
+| `apr_fail <code> <message> [hint]` | Prints the human error, emits `APR_ERROR_CODE=<code>`, and exits/returns with the mapped code |
+
 ### Commands
 
 #### `apr robot status`
@@ -1631,12 +1641,13 @@ Tone is deliberately terse and actionable:
 
 ### Responsive Layout
 
-`apr` chooses one layout mode through a single helper:
+`apr` chooses one layout mode through a single helper and keeps style
+capabilities separate from layout capabilities:
 
 | Mode | Selection |
 |------|-----------|
-| `desktop` | TTY stderr, width `>=100`, height `>=24`, and color/gum allowed |
-| `compact` | Narrow/mobile terminals, non-TTY output, CI, `TERM=dumb`, or explicit compact override |
+| `desktop` | TTY stderr, width `>=100`, height `>=24`, or explicit desktop/wide override |
+| `compact` | Narrow/mobile terminals, non-TTY output, or explicit compact/mobile override |
 | `auto` | Default; detects terminal size and stream capability |
 
 Overrides:
@@ -1648,7 +1659,19 @@ apr status --compact
 apr stats --layout desktop
 ```
 
-Thresholds are configurable with `APR_DESKTOP_MIN_COLS` and `APR_DESKTOP_MIN_ROWS`. `NO_COLOR=1`, `APR_NO_GUM=1`, and `APR_NO_UNICODE=1` progressively remove styling without changing stdout data contracts.
+Thresholds are configurable with `APR_DESKTOP_MIN_COLS` and `APR_DESKTOP_MIN_ROWS`. `NO_COLOR=1`, `TERM=dumb`, `APR_NO_GUM=1`, `APR_NO_UNICODE=1`, and `CI=1` progressively remove styling without changing stdout data contracts.
+
+Shared layout helpers:
+
+| Helper | Purpose |
+|--------|---------|
+| `apr_term_width` | Returns terminal width from `APR_TERM_COLUMNS`, `COLUMNS`, `tput cols`, then `80` |
+| `apr_term_height` | Returns terminal height from `APR_TERM_LINES`, `LINES`, `tput lines`, then `24` |
+| `apr_layout_mode` | Returns `desktop` or `compact`; invalid overrides return status `2` and compact fallback |
+| `apr_color_enabled` | True only when stderr is a capable TTY and `NO_COLOR`/`TERM=dumb` are not set |
+| `apr_unicode_enabled` | True only when stderr is a capable TTY and `APR_NO_UNICODE`/`TERM=dumb` are not set |
+| `apr_gum_allowed` | True only when gum is installed and styling is allowed outside CI |
+| `apr_terminal_capabilities` | Emits stable key-value rows for layout, size, stderr TTY, color, Unicode, and gum capability |
 
 ### Styling Behavior
 

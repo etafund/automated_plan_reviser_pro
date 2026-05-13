@@ -254,6 +254,20 @@ teardown() {
     [[ "$output" == "compact" ]]
 }
 
+@test "apr_terminal_capabilities: emits stable key-value capability rows" {
+    export APR_LAYOUT=zigzag
+    run apr_terminal_capabilities
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"layout=compact"* ]]
+    [[ "$output" == *"layout_status=2"* ]]
+    [[ "$output" == *"width=80"* ]]
+    [[ "$output" == *"height=24"* ]]
+    [[ "$output" == *"stderr_tty=false"* ]]
+    [[ "$output" == *"color=false"* ]]
+    [[ "$output" == *"unicode=false"* ]]
+    [[ "$output" == *"gum=false"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # apr_set_layout_override
 # ---------------------------------------------------------------------------
@@ -320,11 +334,6 @@ teardown() {
 # accidental rewrite of a glyph or fallback string lights up here.
 
 @test "apr_ui_symbol: ASCII fallback set covers bracketed and alphanumeric tokens" {
-    # The 'arrow' and 'light_rule' tokens use leading-dash fallbacks
-    # (`->` and `-`), which the current apr_ui_symbol implementation
-    # passes to `printf` as the format string. printf(1) then misreads
-    # them as option flags. That bug is pinned in the next @test and
-    # tracked as automated_plan_reviser_pro-ecjo.
     local cases=(
         "success [ok]"
         "error [error]"
@@ -345,15 +354,6 @@ teardown() {
 }
 
 @test "apr_ui_symbol: leading-dash fallbacks ('->' and '-') round-trip cleanly (strict)" {
-    # Currently fails: apr_ui_symbol calls `printf '->'` / `printf '-'`,
-    # which printf(1) interprets as option flags ("invalid option"). The
-    # fix is to switch those arms to `printf '%s' '->'` / `printf '%s' '-'`.
-    #
-    # Tracked as follow-up bead automated_plan_reviser_pro-ecjo. Delete
-    # the skip below once the apr-side change lands and this test will
-    # start enforcing the contract.
-    skip "apr_ui_symbol leading-dash printf bug — see bead automated_plan_reviser_pro-ecjo"
-
     local got
     got="$(apr_ui_symbol arrow)"
     [[ "$got" == "->" ]] || { echo "arrow: got='$got'" >&2; return 1; }
