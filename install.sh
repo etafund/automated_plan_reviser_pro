@@ -38,6 +38,22 @@ readonly REPO_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/
 readonly RELEASES_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
 readonly SCRIPT_NAME="apr"
 readonly INSTALLER_VERSION="1.1.0"
+readonly APR_LIB_FILES=(
+    errors.sh
+    ui.sh
+    manifest.sh
+    cache.sh
+    size.sh
+    redact.sh
+    busy.sh
+    busy_wait.sh
+    queue.sh
+    template.sh
+    validate.sh
+    ack.sh
+    files_report.sh
+    ledger.sh
+)
 
 # Colors (conditional on TTY and NO_COLOR)
 if [[ -t 2 ]] && [[ -z "${NO_COLOR:-}" ]]; then
@@ -152,6 +168,19 @@ verify_script() {
     # Basic syntax check
     if ! bash -n "$file" 2>/dev/null; then
         log_error "Downloaded script has syntax errors"
+        return 1
+    fi
+
+    return 0
+}
+
+# Verify downloaded file is a valid bash library.
+verify_lib_script() {
+    local file="$1"
+
+    # Library files are sourced by apr and intentionally do not carry shebangs.
+    if ! bash -n "$file" 2>/dev/null; then
+        log_error "Downloaded library has syntax errors"
         return 1
     fi
 
@@ -399,6 +428,40 @@ check_installer_update() {
     fi
 }
 
+install_apr_libraries() {
+    local install_dir="$1"
+    local use_sudo="$2"
+    local version_info="$3"
+    local lib_install_dir="${install_dir}/lib"
+    local lib_base_url="${REPO_URL}/lib"
+
+    if [[ -n "${APR_VERSION:-}" ]]; then
+        lib_base_url="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/v${APR_VERSION}/lib"
+    fi
+
+    log_step "Installing APR libraries (${version_info})..."
+    $use_sudo mkdir -p "$lib_install_dir"
+
+    local lib_file lib_url lib_tmp
+    for lib_file in "${APR_LIB_FILES[@]}"; do
+        lib_url="${lib_base_url}/${lib_file}"
+
+        lib_tmp=$(mktemp)
+        if ! download_file "$lib_url" "$lib_tmp"; then
+            log_error "Failed to download APR library: lib/${lib_file}"
+            log_error "Source URL: ${lib_url}"
+            exit $EXIT_DOWNLOAD_ERROR
+        fi
+        if ! verify_lib_script "$lib_tmp"; then
+            log_error "Invalid APR library: lib/${lib_file}"
+            exit $EXIT_CHECKSUM_ERROR
+        fi
+
+        $use_sudo mv "$lib_tmp" "${lib_install_dir}/${lib_file}"
+        $use_sudo chmod 0644 "${lib_install_dir}/${lib_file}"
+    done
+}
+
 main() {
     echo "" >&2
     echo -e "${BOLD}${MAGENTA}+================================================================+${NC}" >&2
@@ -492,6 +555,11 @@ main() {
     log_step "Installing to ${script_path}..."
     $use_sudo mv "$tmp_file" "$script_path"
     $use_sudo chmod +x "$script_path"
+
+    # Install sourced APR libraries next to the apr executable. The runtime
+    # loader defaults to "${script_dir}/lib", so curl|bash installs must carry
+    # these files or lib-backed commands fail with "command not found".
+    install_apr_libraries "$install_dir" "$use_sudo" "$version_info"
 
     # Add to PATH
     add_to_path "$install_dir" "$shell_config"
