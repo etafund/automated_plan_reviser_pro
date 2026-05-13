@@ -1394,20 +1394,45 @@ fi
 
 # Run Oracle with auto-retry on transient failures
 # Usage: run_oracle_with_retry oracle_args...
-# Returns: Oracle exit code
+# Returns: Oracle exit code (or 12 / EXIT_BUSY_ERROR for exhausted-busy)
+#
+# Behavior (bd-2kd):
+#   - On non-zero exit, classify stderr via lib/busy.sh.
+#   - If busy: longer dedicated backoff (start APR_BUSY_INITIAL_BACKOFF=30s,
+#     multiplier 2, cap APR_BUSY_MAX_SLEEP=600s, budget APR_BUSY_MAX_WAIT
+#     seconds — 0 disables). Operator messages cite the matched signature
+#     so they know APR isn't hung.
+#   - If non-busy: existing exponential retry (10s -> 30s -> 90s) up to
+#     MAX_RETRY_ATTEMPTS.
+#   - When the busy budget is exhausted: in robot mode emit a structured
+#     busy envelope via robot_emit_busy (bd-18u). In human mode, exit
+#     with EXIT_BUSY_ERROR + clear remediation.
+#
+# Captures oracle stderr into a tempfile via `tee` so the user still
+# sees it live AND we have it for classification.
 run_oracle_with_retry() {
     local attempt=1
     local backoff="$INITIAL_BACKOFF"
     local exit_code=0
+    local busy_attempts=0
+    local busy_max_attempts="${APR_BUSY_MAX_RETRIES:-10}"
+    local busy_backoff="${APR_BUSY_INITIAL_BACKOFF:-30}"
+    local busy_max_sleep="${APR_BUSY_MAX_SLEEP:-600}"
+    local busy_max_wait="${APR_BUSY_MAX_WAIT:-1800}"
+    local busy_elapsed=0
+    local stderr_file
+    stderr_file=$(mktemp 2>/dev/null || printf '/tmp/apr_oracle_stderr.%s' "$$")
 
-    verbose "run_oracle_with_retry: max_attempts=$MAX_RETRY_ATTEMPTS initial_backoff=$INITIAL_BACKOFF"
+    verbose "run_oracle_with_retry: max_attempts=$MAX_RETRY_ATTEMPTS initial_backoff=$INITIAL_BACKOFF busy_max_attempts=$busy_max_attempts busy_initial_backoff=$busy_backoff busy_max_sleep=$busy_max_sleep busy_max_wait=$busy_max_wait"
 
     while [[ $attempt -le $MAX_RETRY_ATTEMPTS ]]; do
         verbose "Oracle attempt $attempt/$MAX_RETRY_ATTEMPTS"
 
-        # Run Oracle command
+        # Run Oracle command, teeing stderr so the user sees it live AND
+        # we capture it for busy classification.
         set +e
-        "${ORACLE_CMD[@]}" "$@"
+        : > "$stderr_file"
+        "${ORACLE_CMD[@]}" "$@" 2> >(tee -a "$stderr_file" >&2)
         exit_code=$?
         set -e
 
@@ -1415,12 +1440,63 @@ run_oracle_with_retry() {
 
         # Success - return immediately
         if [[ $exit_code -eq 0 ]]; then
+            rm -f -- "$stderr_file" 2>/dev/null || true
             return 0
         fi
 
-        # Check if this is a retryable error
-        # Exit codes: typically network/transient issues are specific codes
-        # For now, we'll retry on any non-zero exit if we have attempts left
+        # bd-2kd: classify the failure. Busy gets a separate, longer
+        # retry budget so single-flight contention smooths over instead
+        # of failing fast.
+        local stderr_content=""
+        if [[ -r "$stderr_file" ]]; then
+            stderr_content=$(cat "$stderr_file" 2>/dev/null || printf '')
+        fi
+        local is_busy=0
+        if command -v apr_lib_busy_detect_text >/dev/null 2>&1; then
+            if apr_lib_busy_detect_text "$stderr_content"; then
+                is_busy=1
+            fi
+        fi
+
+        if [[ $is_busy -eq 1 ]]; then
+            local sig=""
+            if command -v apr_lib_busy_describe_text >/dev/null 2>&1; then
+                local desc
+                desc=$(apr_lib_busy_describe_text "$stderr_content")
+                sig="${desc#*\"signature\":\"}"; sig="${sig%%\"*}"
+            fi
+            busy_attempts=$((busy_attempts + 1))
+            # Budget checks: per-attempt cap and total-wait budget.
+            if [[ $busy_attempts -ge $busy_max_attempts ]] \
+               || { [[ $busy_max_wait -gt 0 ]] && [[ $busy_elapsed -ge $busy_max_wait ]]; }; then
+                rm -f -- "$stderr_file" 2>/dev/null || true
+                if [[ "${ROBOT_MODE:-}" == "true" ]] && command -v robot_emit_busy >/dev/null 2>&1; then
+                    robot_emit_busy "$stderr_content" "${APR_ROBOT_BUSY_POLICY:-error}" \
+                        "${APR_REMOTE_HOST:-}" "" "" "$((busy_elapsed * 1000))"
+                    return $?
+                fi
+                print_error "Oracle still busy after ${busy_attempts} attempt(s) / ${busy_elapsed}s (signature: ${sig:-?})"
+                print_info "Wait for the in-flight session to finish, or attach to it via 'oracle status'."
+                return "$EXIT_BUSY_ERROR"
+            fi
+            # Compute next sleep with cap.
+            local sleep_s="$busy_backoff"
+            if [[ $sleep_s -gt $busy_max_sleep ]]; then
+                sleep_s="$busy_max_sleep"
+            fi
+            print_warning "Oracle busy (signature: ${sig:-?}); waiting ${sleep_s}s (busy attempt ${busy_attempts}/${busy_max_attempts}, elapsed ${busy_elapsed}s)"
+            print_info "Cancel with Ctrl-C; or attach to the in-flight session via 'oracle status'."
+            sleep "$sleep_s"
+            busy_elapsed=$(( busy_elapsed + sleep_s ))
+            busy_backoff=$(( busy_backoff * 2 ))
+            if [[ $busy_backoff -gt $busy_max_sleep ]]; then
+                busy_backoff="$busy_max_sleep"
+            fi
+            # Don't burn a "generic" attempt on a busy retry.
+            continue
+        fi
+
+        # Non-busy error: existing generic-retry path.
         if [[ $attempt -lt $MAX_RETRY_ATTEMPTS ]]; then
             print_warning "Attempt $attempt/$MAX_RETRY_ATTEMPTS failed (exit code: $exit_code)"
             print_info "Retrying in ${backoff}s..."
@@ -1432,6 +1508,7 @@ run_oracle_with_retry() {
         ((attempt++))
     done
 
+    rm -f -- "$stderr_file" 2>/dev/null || true
     print_error "All $MAX_RETRY_ATTEMPTS attempts failed"
     return "$exit_code"
 }
@@ -2431,11 +2508,14 @@ cmd_plan() {
     [[ "${DRY_RUN:-}" == "true" ]] && args+=("--dry-run")
 
     case "$subcommand" in
+        fanout|normalize|compare|synthesize)
+            python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/plan-pipeline.py" --action "$subcommand" "${args[@]}"
+            ;;
         export-beads)
             python3 "${PROJECT_ROOT}/PLAN/apr-vnext-plan-bundle-v18.0.0/scripts/export-beads.py" "${args[@]}"
             ;;
         *)
-            apr_fail "usage_error" "Subcommand required: export-beads" "Usage: apr plan export-beads [options]"
+            apr_fail "usage_error" "Subcommand required: fanout, normalize, compare, synthesize, export-beads" "Usage: apr plan {fanout|normalize|compare|synthesize|export-beads} [options]"
             ;;
     esac
 }
